@@ -44,24 +44,9 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        // Documentación abierta
                         .requestMatchers("/docs/**", "/swagger-ui/**", "/v3/api-docs/**", "/h2-console/**").permitAll()
-
-                        // ACCESO DE CLIENTES (ADMIN y USER)
-                        // Procesar un pago propio (POST)
-                        .requestMatchers(HttpMethod.POST, "/api/v1/payments").hasAnyRole("ADMIN", "USER")
-                        // Consultar comprobante por ID o por Orden (GET)
-                        .requestMatchers(HttpMethod.GET, "/api/v1/payments/{id}").hasAnyRole("ADMIN", "USER")
-                        .requestMatchers(HttpMethod.GET, "/api/v1/payments/orden/**").hasAnyRole("ADMIN", "USER")
-
-                        // OPERACIONES EXCLUSIVAS DE ADMINISTRACIÓN (Solo ADMIN)
-                        // Buscar todos los pagos del sistema por estado (auditoría financiera)
-                        .requestMatchers(HttpMethod.GET, "/api/v1/payments/estado/**").hasRole("ADMIN")
-
-                        // Modificar estados manualmente o anular pagos (CORREGIDO: Se cambió ** por *)
-                        .requestMatchers(HttpMethod.PATCH, "/api/v1/payments/*/estado").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PATCH, "/api/v1/payments/*/anular").hasRole("ADMIN")
-
+                        .requestMatchers(HttpMethod.GET, "/api/v1/productos", "/api/v1/productos/**").permitAll()
+                        .requestMatchers("/api/v1/productos", "/api/v1/productos/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.jwtAuthenticationConverter(converter)))

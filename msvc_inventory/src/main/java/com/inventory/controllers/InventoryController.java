@@ -35,6 +35,17 @@ public class InventoryController {
     @Autowired
     private InventoryModelAssembler inventoryModelAssembler;
 
+    @GetMapping
+    @Operation(summary = "Listado de stock", description = "Devuelve el stock de todos los productos, sin el detalle de movimientos")
+    @ApiResponse(responseCode = "200", description = "Operación exitosa")
+    public ResponseEntity<CollectionModel<EntityModel<InventoryDetalleDTO>>> findAll() {
+        List<EntityModel<InventoryDetalleDTO>> entityModels = this.inventoryService.findAll()
+                .stream()
+                .map(inventoryModelAssembler::toModel)
+                .toList();
+        return ResponseEntity.status(HttpStatus.OK).body(CollectionModel.of(entityModels));
+    }
+
     @GetMapping("/producto/{productId}")
     @Operation(summary = "Listar inventario por Producto", description = "devuelve todos los registoros de un inventario asociado al ID de un producto")
     @ApiResponses(value = {

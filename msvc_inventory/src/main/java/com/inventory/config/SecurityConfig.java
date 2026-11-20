@@ -44,18 +44,12 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        // Rutas de documentación y consola H2 abiertas
                         .requestMatchers("/docs/**", "/swagger-ui/**", "/v3/api-docs/**", "/h2-console/**").permitAll()
-
-                        // LECTURA DE STOCK (GET): Permitido a ADMIN y USER para verificar disponibilidad de productos
-                        .requestMatchers(HttpMethod.GET, "/api/v1/inventories/**").hasAnyRole("ADMIN", "USER")
-
-                        // PROCESOS TRANSACCIONALES (PUT): Reservar, liberar o confirmar stock operativo en compras (ADMIN y USER)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/inventories", "/api/v1/inventories/producto/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/inventories/**").hasAnyRole("ADMIN", "OPERADOR")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/inventories/producto/**").hasAnyRole("ADMIN", "USER")
-
-                        // MANTENIMIENTO Y CONTROL (POST, PATCH, DELETE): Crear, modificar cantidades manualmente o borrar (Solo ADMIN)
-                        .requestMatchers("/api/v1/inventories/**").hasRole("ADMIN")
-
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/inventories/*/cantidad").hasAnyRole("ADMIN", "OPERADOR")
+                        .requestMatchers("/api/v1/inventories", "/api/v1/inventories/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.jwtAuthenticationConverter(converter)))

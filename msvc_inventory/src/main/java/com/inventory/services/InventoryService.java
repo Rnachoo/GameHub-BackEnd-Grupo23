@@ -8,6 +8,7 @@ import com.inventory.models.dtos.InventoryUpdateCantidadDisponibleDTO;
 import java.util.List;
 
 public interface InventoryService {
+    List<InventoryDetalleDTO> findAll();
     List<InventoryDetalleDTO> findAllByProduct(Long productId);
     InventoryDetalleDTO findByID(Long id);
     InventoryDetalleDTO save (InventorySaveDTO inventorySaveDTO);
