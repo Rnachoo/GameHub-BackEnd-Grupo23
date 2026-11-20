@@ -6,7 +6,9 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
-
 @Repository
 public interface InventoryRepository extends JpaRepository<Inventory, Long> {
-    List<Inventory> findByProductId(Long productoId);}
+    List<Inventory> findByProductId(Long productoId);
+
+    boolean existsByProductId(Long productId);
+}

@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 @Setter
 @ToString
 @NoArgsConstructor
-public class    Promotion {
+public class Promotion {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -38,5 +38,6 @@ public class    Promotion {
     private LocalDateTime fechaFin;
     private double montoMinimo;
     private Long usosMaximos;
+    private Double tope;
     private String estado;
 }

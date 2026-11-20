@@ -46,6 +46,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/docs/**", "/swagger-ui/**", "/v3/api-docs/**", "/h2-console/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/resenas/producto/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/resenas/**")
                         .hasAnyRole("ADMIN", "USER")
                         .requestMatchers("/api/v1/resenas/**")

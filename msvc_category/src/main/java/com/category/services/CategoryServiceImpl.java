@@ -1,6 +1,7 @@
 package com.category.services;
 
 import com.category.exceptions.CategoryException;
+import com.category.exceptions.RecursoNoEncontradoException;
 import com.category.models.Category;
 import com.category.models.dtos.CategoryDetalleDTO;
 import com.category.models.dtos.CategorySaveDTO;
@@ -39,7 +40,7 @@ public class CategoryServiceImpl implements CategoryService {
     public CategoryDetalleDTO findById(Long id) {
         log.info("Buscando categorias registradas en el sistema!");
         Category category = this.categoryRepository.findById(id).orElseThrow(
-                () -> new CategoryException("Categoria con ID "+ id + " no encontrada"));
+                () -> new RecursoNoEncontradoException("Categoria con ID "+ id + " no encontrada"));
         CategoryDetalleDTO dto = new CategoryDetalleDTO();
         dto.setId(category.getId());
         dto.setNombreCategory(category.getNombreCategory());
@@ -72,7 +73,7 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     public CategoryDetalleDTO desactiveById(Long id) { //Debe actualizarse, una ves creado el msvc Product
         Category category = this.categoryRepository.findById(id).orElseThrow(
-                () -> new CategoryException("Categoria con ID "+ id +" no encontrada"));
+                () -> new RecursoNoEncontradoException("Categoria con ID "+ id +" no encontrada"));
         category.setEstado("Inactive");
         category = categoryRepository.save(category);
         log.info("Categoria con id "+ id +"Ha sido desactivada");
@@ -100,7 +101,7 @@ public class CategoryServiceImpl implements CategoryService {
             return dto;
 
         }).orElseThrow(
-                () -> new CategoryException("Categoria no encontrada, no se puede actualizar el nombre")
+                () -> new RecursoNoEncontradoException("Categoria no encontrada, no se puede actualizar el nombre")
         );
     }
 
@@ -121,7 +122,7 @@ public class CategoryServiceImpl implements CategoryService {
 
 
         }).orElseThrow(
-                () -> new CategoryException("Categoria no encontrada, no se puede actualizar la descripcion")
+                () -> new RecursoNoEncontradoException("Categoria no encontrada, no se puede actualizar la descripcion")
         );
     }
 }

@@ -24,7 +24,7 @@ public class MovimientoInventario {
     private Long id;
 
     @NotNull(message = "El ID del producto es obligatorio")
-    @Column(unique = true, nullable = false)
+    @Column(nullable = false)
     private Long productId;
 
     @NotBlank(message = "El tipo de movimiento es obligatorio")
