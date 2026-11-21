@@ -4,6 +4,7 @@ import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -31,7 +32,7 @@ public class SecurityConfig {
 
     // Clave secreta COMPARTIDA por todos los servicios. En produccion iria en una variable de entorno.
     // Usamos un valor por defecto en caso de que no esté definida en el application.properties
-    @Value("${jwt.secret:EstaEsUnaClaveSecretaSuperSeguraYLargaDeAlMenos32Caracteres}")
+    @Value("${jwt.secret}")
     private String secret;
 
     private SecretKey claveHmac() {
@@ -75,8 +76,8 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())                       // API stateless: no usamos CSRF
                 .authorizeHttpRequests(auth -> auth
                         // login y registro son publicos (aun no hay token)
-                        // Asegúrate de que esta ruta coincida con el RequestMapping de tu AuthController
-                        .requestMatchers("/auths/login", "/auths/save").permitAll()
+                        // Rutas reales del AuthController: POST /api/v1/auths (registro) y POST /api/v1/auths/login
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auths", "/api/v1/auths/login").permitAll()
                         // documentacion y consola h2 abiertas para la demo
                         .requestMatchers("/docs/**", "/swagger-ui/**", "/v3/api-docs/**", "/h2-console/**").permitAll()
                         // el resto exige token valido

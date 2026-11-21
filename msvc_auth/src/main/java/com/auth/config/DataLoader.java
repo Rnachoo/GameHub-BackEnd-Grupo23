@@ -6,6 +6,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 @Component
 public class DataLoader implements CommandLineRunner {
 
@@ -14,18 +16,13 @@ public class DataLoader implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        // Crear ROLE_USER si no existe
-        if (rolRepository.findByNombre("ROLE_USER").isEmpty()) {
-            Rol userRol = new Rol();
-            userRol.setNombre("ROLE_USER");
-            rolRepository.save(userRol);
-        }
-
-        // Crear ROLE_ADMIN si no existe
-        if (rolRepository.findByNombre("ROLE_ADMIN").isEmpty()) {
-            Rol adminRol = new Rol();
-            adminRol.setNombre("ROLE_ADMIN");
-            rolRepository.save(adminRol);
+        // Crea los roles que no existan: cliente, administrador y operador
+        for (String nombre : List.of("ROLE_USER", "ROLE_ADMIN", "ROLE_OPERADOR")) {
+            if (rolRepository.findByNombre(nombre).isEmpty()) {
+                Rol rol = new Rol();
+                rol.setNombre(nombre);
+                rolRepository.save(rol);
+            }
         }
     }
 }
