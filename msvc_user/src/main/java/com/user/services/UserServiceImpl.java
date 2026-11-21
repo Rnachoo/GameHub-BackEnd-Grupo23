@@ -1,5 +1,6 @@
 package com.user.services;
 
+import org.springframework.http.HttpStatus;
 import com.user.exceptions.UserException;
 import com.user.models.Direction;
 import com.user.models.User;
@@ -51,7 +52,7 @@ public class UserServiceImpl implements UserService {
         log.info("Buscando usuario por email: " + email);
 
         User user = this.userRepository.findByEmail(email).orElseThrow(
-                () -> new UserException("Usuario con email " + email + " no encontrado"));
+                () -> new UserException("Usuario con email " + email + " no encontrado", HttpStatus.NOT_FOUND));
 
         UserDetalleDTO dto = new UserDetalleDTO();
         dto.setId(user.getId());
@@ -103,7 +104,7 @@ public class UserServiceImpl implements UserService {
     public UserDetalleDTO findById(Long id) {
         log.info("Buscando usuarios registrados en el sistema!");
         User user = this.userRepository.findById(id).orElseThrow(
-                ()-> new UserException("User con ID " + id + " no encontrado"));
+                ()-> new UserException("User con ID " + id + " no encontrado", HttpStatus.NOT_FOUND));
         UserDetalleDTO dto = new UserDetalleDTO();
         dto.setId(user.getId());
         dto.setNombreUser(user.getNombreUser());
@@ -127,7 +128,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserDetalleDTO save(UserSaveDTO userSaveDTO) { //Crear cuenta
         if(this.userRepository.existsByEmail(userSaveDTO.getEmail())){
-            throw new UserException("El correo electronico ya esta registrado");
+            throw new UserException("El correo electronico ya esta registrado", HttpStatus.CONFLICT);
         }
         User user = new User();
         user.setNombreUser(userSaveDTO.getNombreUser());
@@ -174,7 +175,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserDetalleDTO desactiveById(Long id) { //Desactivar cuentas
         User user = this.userRepository.findById(id).orElseThrow(
-                ()-> new UserException("User con ID " + id + " no encontrado"));
+                ()-> new UserException("User con ID " + id + " no encontrado", HttpStatus.NOT_FOUND));
         user.setEstado("Inactive");
         user = userRepository.save(user);
         log.info("Usuario desactivado con exito");
@@ -224,7 +225,7 @@ public class UserServiceImpl implements UserService {
             return dto;
 
         }).orElseThrow(
-                ()  -> new UserException("Cuenta no encontrada, no se puede actualizar el telefono")
+                ()  -> new UserException("Cuenta no encontrada, no se puede actualizar el telefono", HttpStatus.NOT_FOUND)
         );
     }
 
@@ -261,7 +262,7 @@ public class UserServiceImpl implements UserService {
             return dto;
 
         }).orElseThrow(
-                ()  -> new UserException("Cuenta no encontrada, no se puede actualizar la dirección")
+                ()  -> new UserException("Cuenta no encontrada, no se puede actualizar la dirección", HttpStatus.NOT_FOUND)
         );
     }
 }
