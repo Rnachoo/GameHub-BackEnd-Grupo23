@@ -22,8 +22,9 @@ spring:
       enabled: true
       path: /h2-console
 
+  # Clave compartida con el Gateway y los demás servicios (variable de entorno, sin valor por defecto)
   jwt:
-    secret: clave-secreta-super-segura-para-jwt-gamehub-2026-ignacio
+    secret: ${JWT_SECRET}
 
 springdoc:
   api-docs:
