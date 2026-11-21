@@ -42,4 +42,19 @@ public class JwtService {
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
         return this.jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
     }
+
+    // Token corto para llamadas internas entre microservicios (Feign).
+    // No pertenece a ningún cliente: lo firma Auth con la clave compartida.
+    public String generarTokenServicio() {
+        Instant ahora = Instant.now();
+        JwtClaimsSet claims = JwtClaimsSet.builder()
+                .issuer("msvc-auth")
+                .issuedAt(ahora)
+                .expiresAt(ahora.plus(2, ChronoUnit.MINUTES))
+                .subject("msvc-auth")
+                .claim("roles", List.of("ROLE_ADMIN"))
+                .build();
+        JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
+        return this.jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+    }
 }
