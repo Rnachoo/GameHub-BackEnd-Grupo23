@@ -24,7 +24,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
-
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 
@@ -183,5 +184,17 @@ public class AuthController {
         AuthDetalleDTO response = authService.login(authLoginDTO);
         EntityModel<AuthDetalleDTO> entityModel = this.authModelAssembler.toModel(response);
         return ResponseEntity.ok(entityModel);
+    }
+
+    @PostMapping("/refresh")
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER', 'OPERADOR')")
+    @Operation(summary = "Renovar token", description = "Recibe un token vigente (Authorization: Bearer) y devuelve uno nuevo")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Token renovado"),
+            @ApiResponse(responseCode = "401", description = "Token vencido, inválido o cuenta desactivada")
+    })
+    public ResponseEntity<EntityModel<AuthDetalleDTO>> refresh(@AuthenticationPrincipal Jwt jwt) {
+        AuthDetalleDTO response = authService.refresh(jwt.getSubject());
+        return ResponseEntity.ok(this.authModelAssembler.toModel(response));
     }
 }

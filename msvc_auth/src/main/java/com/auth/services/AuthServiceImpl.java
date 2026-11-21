@@ -217,19 +217,17 @@ public class AuthServiceImpl implements AuthService {
         if(authLoginDTO.getPassword() == null || authLoginDTO.getPassword().isBlank()){
             throw new AuthException("La contraseña no puede estar vacia");
         }
-        // Mismo mensaje para correo inexistente y contraseña errada: no revela qué correos existen
         Auth auth = this.authRepository.findByEmail(authLoginDTO.getEmail()).orElseThrow(
-                () -> new AuthException("Credenciales inválidas", HttpStatus.UNAUTHORIZED, "CREDENCIALES_INVALIDAS"));
+                () -> new AuthException("Credenciales Invalidas"));
+
+        if(!"Active".equalsIgnoreCase(auth.getEstado())){
+            log.warn("La cuenta con email " + auth.getEmail() + " esta desactivada");
+            throw new AuthException("El usuario esta inactivo, no se puede iniciar sesión");
+        }
 
         if(!passwordEncoder.matches(authLoginDTO.getPassword(), auth.getPassword())){
             log.warn("Cuenta con email " + auth.getEmail() + " Fallo al escribir la contraseña");
-            throw new AuthException("Credenciales inválidas", HttpStatus.UNAUTHORIZED, "CREDENCIALES_INVALIDAS");
-        }
-
-        // El estado se revisa después de validar la contraseña, para no revelarlo a quien no la conoce
-        if(!"Active".equalsIgnoreCase(auth.getEstado())){
-            log.warn("La cuenta con email " + auth.getEmail() + " esta desactivada");
-            throw new AuthException("La cuenta está desactivada", HttpStatus.UNAUTHORIZED, "CUENTA_DESACTIVADA");
+            throw new AuthException("Contraseña invalida");
         }
         log.info("Login exitoso para la cuenta con email " + auth.getEmail());
 
@@ -241,7 +239,25 @@ public class AuthServiceImpl implements AuthService {
         dto.setEstado(auth.getEstado());
         dto.setRol(auth.getRoles().isEmpty() ? "SIN_ROL" : auth.getRoles().iterator().next().getNombre());
 
-        dto.setToken(token);
+        return dto;
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public AuthDetalleDTO refresh(String email) {
+        Auth auth = this.authRepository.findByEmail(email).orElseThrow(
+                () -> new AuthException("Sesión inválida", HttpStatus.UNAUTHORIZED, "SESION_INVALIDA"));
+
+        if (!"Active".equalsIgnoreCase(auth.getEstado())) {
+            throw new AuthException("La cuenta está desactivada", HttpStatus.UNAUTHORIZED, "CUENTA_DESACTIVADA");
+        }
+
+        AuthDetalleDTO dto = new AuthDetalleDTO();
+        dto.setId(auth.getId());
+        dto.setEmail(auth.getEmail());
+        dto.setEstado(auth.getEstado());
+        dto.setRol(auth.getRoles().isEmpty() ? "SIN_ROL" : auth.getRoles().iterator().next().getNombre());
+        dto.setToken(jwtService.generarToken(auth));
         return dto;
     }
 }
