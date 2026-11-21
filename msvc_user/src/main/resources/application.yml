@@ -22,8 +22,6 @@ spring:
       enabled: true
       path: /h2-console
 
-  jwt:
-    secret: clave-secreta-super-segura-para-jwt-gamehub-2026-ignacio
 
 springdoc:
   api-docs:
@@ -38,3 +36,7 @@ eureka:
       defaultZone: http://localhost:8761/eureka/
   instance:
     prefer-ip-address: true
+
+# Clave compartida con el Gateway y los demas servicios (variable de entorno, sin valor por defecto)
+jwt:
+  secret: ${JWT_SECRET}
