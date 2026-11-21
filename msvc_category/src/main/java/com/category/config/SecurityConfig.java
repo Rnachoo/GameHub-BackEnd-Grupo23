@@ -31,7 +31,7 @@ public class SecurityConfig {
     // Se lee del application.properties. Es la MISMA clave con la que el servidor de autorización firmó el token;
     // por eso aquí podemos verificar que la firma es auténtica.
     // CORREGIDO: Se agregó el valor por defecto para evitar el PlaceholderResolutionException 👇
-    @Value("${jwt.secret:EstaEsUnaClaveSecretaSuperSeguraYLargaDeAlMenos32Caracteres}")
+    @Value("${jwt.secret}")
     private String secret;
 
     // Construye la clave HMAC-SHA256 a partir del texto del secreto.

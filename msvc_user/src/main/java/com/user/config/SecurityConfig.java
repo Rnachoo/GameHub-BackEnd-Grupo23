@@ -20,7 +20,7 @@ import java.nio.charset.StandardCharsets;
 @Configuration
 public class SecurityConfig {
 
-    @Value("${jwt.secret:EstaEsUnaClaveSecretaSuperSeguraYLargaDeAlMenos32Caracteres}")
+    @Value("${jwt.secret}")
     private String secret;
 
     @Bean
@@ -54,7 +54,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/users", "/api/v1/users/rol/**", "/api/v1/users/estado/**").hasRole("ADMIN")
 
                         // BUSCAR POR ID O EMAIL Y ACTUALIZAR DATOS (GET, PATCH): ADMIN o USER
-                        .requestMatchers("/api/v1/users/**").hasAnyRole("ADMIN", "USER")
+                        .requestMatchers("/api/v1/users/**").hasAnyRole("ADMIN", "USER", "OPERADOR")
 
                         .anyRequest().authenticated())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

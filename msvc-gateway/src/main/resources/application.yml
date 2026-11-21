@@ -158,4 +158,4 @@ springdoc:
 # CLAVE SECRETA JWT
 # ==========================================
 jwt:
-  secret: clave-secreta-super-segura-para-jwt-gamehub-2026-ignacio
+  secret: ${JWT_SECRET}
