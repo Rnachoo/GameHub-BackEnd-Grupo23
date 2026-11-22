@@ -17,6 +17,7 @@ import com.auth.security.JwtService;
 import feign.FeignException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +28,9 @@ import java.util.List;
 @Service
 @Slf4j
 public class AuthServiceImpl implements AuthService {
+
+    // Todo registro público crea una cuenta de cliente. Solo un ADMIN cambia roles (PATCH /auths/{id}/rol).
+    private static final String ROL_POR_DEFECTO = "ROLE_USER";
 
     @Autowired
     private AuthRepository authRepository;
@@ -69,7 +73,7 @@ public class AuthServiceImpl implements AuthService {
     public AuthDetalleDTO findById(Long id){
         log.info("Buscando cuentas registradas en el sistema por ID!");
         Auth auth = this.authRepository.findById(id).orElseThrow(
-                ()-> new AuthException("Cuenta con ID " + id + " no encontrada"));
+                ()-> new AuthException("Cuenta con ID " + id + " no encontrada", HttpStatus.NOT_FOUND));
 
         AuthDetalleDTO dto = new AuthDetalleDTO();
         dto.setId(auth.getId());
@@ -91,7 +95,7 @@ public class AuthServiceImpl implements AuthService {
     public AuthDetalleDTO findByEmail(String email) {
         log.info("Buscando cuentas registradas en el sistema por Email!");
         Auth auth = this.authRepository.findByEmail(email).orElseThrow(
-                () -> new AuthException("Cuenta con Email " + email + " no encontrado"));
+                () -> new AuthException("Cuenta con Email " + email + " no encontrado", HttpStatus.NOT_FOUND));
 
         AuthDetalleDTO dto = new AuthDetalleDTO();
         dto.setId(auth.getId());
@@ -104,7 +108,7 @@ public class AuthServiceImpl implements AuthService {
             dto.setUser(user);
         } catch (FeignException e) {
             log.warn("Error de conexión con user con email " + auth.getEmail());
-            throw new AuthException("Cuenta con email " + auth.getEmail() + " encontrada, pero no se puede obtener la información.");
+            throw new AuthException("Cuenta con email " + auth.getEmail() + " encontrada, pero no se puede obtener la información.", HttpStatus.BAD_GATEWAY);
         }
         return dto;
     }
@@ -113,11 +117,12 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public AuthDetalleDTO save(AuthSaveDTO authSaveDTO) {
         if(this.authRepository.findByEmail(authSaveDTO.getEmail()).isPresent()){
-            throw new AuthException("Cuenta con Email " + authSaveDTO.getEmail() + " ya esta registrado");
+            throw new AuthException("Cuenta con Email " + authSaveDTO.getEmail() + " ya esta registrado", HttpStatus.CONFLICT);
         }
 
-        Rol rolAsignado = this.rolRepository.findByNombre(authSaveDTO.getRol())
-                .orElseThrow(() -> new AuthException("El rol '" + authSaveDTO.getRol() + "' no existe."));
+        // El rol enviado en el body se ignora: el registro público siempre crea ROLE_USER
+        Rol rolAsignado = this.rolRepository.findByNombre(ROL_POR_DEFECTO)
+                .orElseThrow(() -> new AuthException("El rol '" + ROL_POR_DEFECTO + "' no existe.", HttpStatus.INTERNAL_SERVER_ERROR));
 
         Auth auth = new Auth();
         auth.setEmail(authSaveDTO.getEmail());
@@ -143,7 +148,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public AuthDetalleDTO desactiveById(Long id){
         Auth auth = this.authRepository.findById(id).orElseThrow(
-                () -> new AuthException("Cuenta con ID " + id + " no encontrado"));
+                () -> new AuthException("Cuenta con ID " + id + " no encontrado", HttpStatus.NOT_FOUND));
 
         auth.setEstado("Inactive");
         auth = authRepository.save(auth);
@@ -175,7 +180,7 @@ public class AuthServiceImpl implements AuthService {
             return dto;
 
         }).orElseThrow(
-                () -> new AuthException("Cuenta no encontrada")
+                () -> new AuthException("Cuenta no encontrada", HttpStatus.NOT_FOUND)
         );
     }
 
@@ -199,7 +204,7 @@ public class AuthServiceImpl implements AuthService {
             return dto;
 
         }).orElseThrow(
-                () -> new AuthException("Cuenta no encontrada, no se puede actualizar el rol")
+                () -> new AuthException("Cuenta no encontrada, no se puede actualizar el rol", HttpStatus.NOT_FOUND)
         );
     }
 
@@ -212,17 +217,19 @@ public class AuthServiceImpl implements AuthService {
         if(authLoginDTO.getPassword() == null || authLoginDTO.getPassword().isBlank()){
             throw new AuthException("La contraseña no puede estar vacia");
         }
+        // Mismo mensaje para correo inexistente y contraseña errada: no revela qué correos existen
         Auth auth = this.authRepository.findByEmail(authLoginDTO.getEmail()).orElseThrow(
-                () -> new AuthException("Credenciales Invalidas"));
-
-        if(!"Active".equalsIgnoreCase(auth.getEstado())){
-            log.warn("La cuenta con email " + auth.getEmail() + " esta desactivada");
-            throw new AuthException("El usuario esta inactivo, no se puede iniciar sesión");
-        }
+                () -> new AuthException("Credenciales inválidas", HttpStatus.UNAUTHORIZED, "CREDENCIALES_INVALIDAS"));
 
         if(!passwordEncoder.matches(authLoginDTO.getPassword(), auth.getPassword())){
             log.warn("Cuenta con email " + auth.getEmail() + " Fallo al escribir la contraseña");
-            throw new AuthException("Contraseña invalida");
+            throw new AuthException("Credenciales inválidas", HttpStatus.UNAUTHORIZED, "CREDENCIALES_INVALIDAS");
+        }
+
+        // El estado se revisa después de validar la contraseña, para no revelarlo a quien no la conoce
+        if(!"Active".equalsIgnoreCase(auth.getEstado())){
+            log.warn("La cuenta con email " + auth.getEmail() + " esta desactivada");
+            throw new AuthException("La cuenta está desactivada", HttpStatus.UNAUTHORIZED, "CUENTA_DESACTIVADA");
         }
         log.info("Login exitoso para la cuenta con email " + auth.getEmail());
 
@@ -234,6 +241,26 @@ public class AuthServiceImpl implements AuthService {
         dto.setEstado(auth.getEstado());
         dto.setRol(auth.getRoles().isEmpty() ? "SIN_ROL" : auth.getRoles().iterator().next().getNombre());
 
+        dto.setToken(token);
+        return dto;
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public AuthDetalleDTO refresh(String email) {
+        Auth auth = this.authRepository.findByEmail(email).orElseThrow(
+                () -> new AuthException("Sesión inválida", HttpStatus.UNAUTHORIZED, "SESION_INVALIDA"));
+
+        if (!"Active".equalsIgnoreCase(auth.getEstado())) {
+            throw new AuthException("La cuenta está desactivada", HttpStatus.UNAUTHORIZED, "CUENTA_DESACTIVADA");
+        }
+
+        AuthDetalleDTO dto = new AuthDetalleDTO();
+        dto.setId(auth.getId());
+        dto.setEmail(auth.getEmail());
+        dto.setEstado(auth.getEstado());
+        dto.setRol(auth.getRoles().isEmpty() ? "SIN_ROL" : auth.getRoles().iterator().next().getNombre());
+        dto.setToken(jwtService.generarToken(auth));
         return dto;
     }
 }

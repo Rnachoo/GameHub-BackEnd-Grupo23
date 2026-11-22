@@ -18,9 +18,9 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 
 @Configuration
-public class SecurityConfig {
+public class    SecurityConfig {
 
-    @Value("${jwt.secret:EstaEsUnaClaveSecretaSuperSeguraYLargaDeAlMenos32Caracteres}")
+    @Value("${jwt.secret}")
     private String secret;
 
     @Bean

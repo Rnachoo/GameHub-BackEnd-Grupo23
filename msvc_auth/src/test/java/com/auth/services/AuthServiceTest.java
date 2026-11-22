@@ -272,7 +272,7 @@ public class AuthServiceTest {
 
         assertThatThrownBy(() -> this.authService.login(loginDTO))
                 .isInstanceOf(AuthException.class)
-                .hasMessage("Contraseña invalida");
+                .hasMessage("Credenciales inválidas");
 
         verify(authRepository, times(1)).findByEmail(loginDTO.getEmail());
         verify(passwordEncoder, times(1)).matches(loginDTO.getPassword(), this.authPrueba.getPassword());

@@ -24,7 +24,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
-
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 
@@ -61,7 +62,7 @@ public class AuthController {
 
     //Buscar por el ID de una cuenta
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER', 'OPERADOR')")
     @Operation(summary = "Búscar cuenta con el ID", description = "Devuelve los detalles de una cuenta coincidente con el ID registrado")
     @ApiResponses(value = {
             @ApiResponse(
@@ -81,7 +82,7 @@ public class AuthController {
 
     //Buscar una cuenta por el email
     @GetMapping("/email/{email}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER', 'OPERADOR')")
     @Operation(summary = "Busqueda de una cuenta por el Email", description = "Devuelve los detalles de una cuenta basándose en su Email")
     @ApiResponses(value = {
             @ApiResponse(
@@ -130,7 +131,7 @@ public class AuthController {
 
     //Actualizar la contraseña de una cuenta
     @PatchMapping("/{id}/password")
-    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER', 'OPERADOR')")
     @Operation(summary = "Actualizar contraseña de una cuenta", description = "Actualiza la clave una cuenta registrada")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Contraseña de la cuenta actualizada con exito"),
@@ -183,5 +184,17 @@ public class AuthController {
         AuthDetalleDTO response = authService.login(authLoginDTO);
         EntityModel<AuthDetalleDTO> entityModel = this.authModelAssembler.toModel(response);
         return ResponseEntity.ok(entityModel);
+    }
+
+    @PostMapping("/refresh")
+    @PreAuthorize("hasAnyRole('ADMIN', 'USER', 'OPERADOR')")
+    @Operation(summary = "Renovar token", description = "Recibe un token vigente (Authorization: Bearer) y devuelve uno nuevo")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Token renovado"),
+            @ApiResponse(responseCode = "401", description = "Token vencido, inválido o cuenta desactivada")
+    })
+    public ResponseEntity<EntityModel<AuthDetalleDTO>> refresh(@AuthenticationPrincipal Jwt jwt) {
+        AuthDetalleDTO response = authService.refresh(jwt.getSubject());
+        return ResponseEntity.ok(this.authModelAssembler.toModel(response));
     }
 }
