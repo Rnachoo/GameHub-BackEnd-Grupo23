@@ -1,6 +1,7 @@
 package com.user.controllers;
 
 import com.user.exceptions.UserException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -30,5 +31,14 @@ public class ApiExceptionHandler {
         body.put("mensaje", ex.getMessage());
         return ResponseEntity.status(ex.getStatus()).body(body);
     }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleDuplicado(DataIntegrityViolationException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("estado", 409);
+        body.put("mensaje", "Ya existe un registro con esos datos (correo, nombre o teléfono repetido)");
+        return ResponseEntity.status(409).body(body);
+    }
+
 
 }
