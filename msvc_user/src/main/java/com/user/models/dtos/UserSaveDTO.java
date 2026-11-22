@@ -2,6 +2,7 @@ package com.user.models.dtos;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -19,6 +20,7 @@ public class UserSaveDTO {
     private String nombreUser;
 
     @NotBlank(message = "El número de telefono es obligatorio")
+    @Pattern(regexp = "^[0-9]{9}$", message = "El teléfono debe tener 9 dígitos numéricos")
     private String telefono;
 
     @NotBlank(message = "El campo de correo no puede ser vacio")
