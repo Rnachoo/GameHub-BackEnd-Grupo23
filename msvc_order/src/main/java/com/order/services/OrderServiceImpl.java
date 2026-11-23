@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -28,17 +29,24 @@ import java.util.regex.Pattern;
 @Slf4j
 public class OrderServiceImpl implements OrderService {
 
-    private static final Set<String> ESTADOS = Set.of("PENDIENTE_PAGO", "PAGADA", "CANCELADA");
-    private static final Pattern MENSAJE_ERROR = Pattern.compile("\"(?:error|mensaje)\"\\s*:\\s*\"([^\"]+)\"");
+    private static final Set<String> ESTADOS =
+            Set.of("PENDIENTE_PAGO", "PAGADA", "CANCELADA");
+
+    private static final Pattern MENSAJE_ERROR =
+            Pattern.compile("\"(?:error|mensaje)\"\\s*:\\s*\"([^\"]+)\"");
 
     @Autowired
     private OrderRepository orderRepository;
+
     @Autowired
     private InventoryClient inventoryClient;
+
     @Autowired
     private ProductClient productClient;
+
     @Autowired
     private PromotionClient promotionClient;
+
     @Autowired
     private UserClient userClient;
 
@@ -46,14 +54,18 @@ public class OrderServiceImpl implements OrderService {
     @Override
     public List<OrderDetalleDTO> findByClient(Long userId) {
         log.info("Buscando ordenes para el cliente con ID: {}", userId);
-        return orderRepository.findByUserId(userId).stream().map(this::toDTO).toList();
+        return orderRepository.findByUserId(userId).stream()
+                .map(this::toDTO)
+                .toList();
     }
 
     @Transactional(readOnly = true)
     @Override
     public List<OrderDetalleDTO> findByEstado(String estado) {
         log.info("Buscando ordenes con estado: {}", estado);
-        return orderRepository.findByEstado(estado.toUpperCase()).stream().map(this::toDTO).toList();
+        return orderRepository.findByEstado(estado.toUpperCase(Locale.ROOT)).stream()
+                .map(this::toDTO)
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -70,8 +82,11 @@ public class OrderServiceImpl implements OrderService {
         } catch (FeignException e) {
             throw new RecursoNoEncontradoException("El user con id " + userId + " no existe");
         }
+
         if (usuario.getEmail() == null || !usuario.getEmail().equalsIgnoreCase(email)) {
-            throw new AccesoDenegadoException("No tienes permiso para acceder a las ordenes de otro usuario");
+            throw new AccesoDenegadoException(
+                    "No tienes permiso para acceder a las ordenes de otro usuario"
+            );
         }
     }
 
@@ -83,7 +98,9 @@ public class OrderServiceImpl implements OrderService {
         try {
             userClient.getUserById(orderSaveDTO.getUserId());
         } catch (FeignException e) {
-            throw new RecursoNoEncontradoException("El user con id " + orderSaveDTO.getUserId() + " no existe");
+            throw new RecursoNoEncontradoException(
+                    "El user con id " + orderSaveDTO.getUserId() + " no existe"
+            );
         }
 
         Order newOrder = new Order();
@@ -93,9 +110,12 @@ public class OrderServiceImpl implements OrderService {
 
         long subtotal = 0;
         List<OrderItem> items = new ArrayList<>();
+
         for (OrderSaveItemDTO saveItem : orderSaveDTO.getItems()) {
             ProductDTO producto = buscarProducto(saveItem.getProductId());
-            long precio = producto.getPrecioDescuento() != null ? producto.getPrecioDescuento() : producto.getPrecio();
+            long precio = producto.getPrecioDescuento() != null
+                    ? producto.getPrecioDescuento()
+                    : producto.getPrecio();
 
             OrderItem item = new OrderItem();
             item.setProductId(saveItem.getProductId());
@@ -103,6 +123,7 @@ public class OrderServiceImpl implements OrderService {
             item.setPrecioUnitario(precio);
             item.setOrder(newOrder);
             items.add(item);
+
             subtotal += precio * saveItem.getCantidad();
         }
 
@@ -113,16 +134,26 @@ public class OrderServiceImpl implements OrderService {
                 reservados.add(item);
             } catch (FeignException e) {
                 liberar(reservados);
-                throw new OrderException("No hay stock suficiente para el producto " + item.getProductId());
+                throw new OrderException(
+                        "No hay stock suficiente para el producto " + item.getProductId()
+                );
             }
         }
 
         long descuento = 0;
         String codigo = orderSaveDTO.getCodigoPromocion();
+
         if (codigo != null && !codigo.isBlank()) {
             try {
-                PromotionSaveDTO promotionSaveDTO = new PromotionSaveDTO(codigo.trim().toUpperCase(), orderSaveDTO.getItems());
-                PromotionDTO promocion = promotionClient.aplicarPromocion(promotionSaveDTO.getCodigo(), promotionSaveDTO, (double) subtotal);
+                PromotionSaveDTO promotionSaveDTO = new PromotionSaveDTO(
+                        codigo.trim().toUpperCase(Locale.ROOT),
+                        orderSaveDTO.getItems()
+                );
+                PromotionDTO promocion = promotionClient.aplicarPromocion(
+                        promotionSaveDTO.getCodigo(),
+                        promotionSaveDTO,
+                        (double) subtotal
+                );
                 descuento = calcularDescuento(promocion, subtotal);
             } catch (FeignException e) {
                 liberar(reservados);
@@ -143,51 +174,82 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     @Override
     public OrderDetalleDTO updateEstado(Long id, OrderUpdateEstadoDTO orderUpdateEstadoDTO) {
-        Order orden = buscar(id);
-        String nuevoEstado = orderUpdateEstadoDTO.getEstado().toUpperCase();
+        Order orden = buscarParaActualizar(id);
+        String nuevoEstado = orderUpdateEstadoDTO.getEstado().toUpperCase(Locale.ROOT);
+
         if (!ESTADOS.contains(nuevoEstado)) {
             throw new OrderException("Estado no valido. Use PENDIENTE_PAGO, PAGADA o CANCELADA");
         }
+
+        // Una repetición posterior al guardado no debe ejecutar otra vez la transición.
+        if (nuevoEstado.equals(orden.getEstado())) {
+            return toDTO(orden);
+        }
+
         if ("CANCELADA".equals(orden.getEstado())) {
             throw new OrderException("Una orden cancelada no puede cambiar de estado.");
         }
+
         if ("CANCELADA".equals(nuevoEstado)) {
             liberar(orden.getItems());
         }
+
         orden.setEstado(nuevoEstado);
+        Order guardada = orderRepository.save(orden);
         log.info("Orden {} actualizada a {}", id, nuevoEstado);
-        return toDTO(orderRepository.save(orden));
+        return toDTO(guardada);
     }
 
     @Transactional
     @Override
     public void cancelarOrden(Long id) {
-        Order orden = buscar(id);
+        Order orden = buscarParaActualizar(id);
+
         if ("CANCELADA".equals(orden.getEstado())) {
             throw new OrderException("La orden ya se encuentra cancelada.");
         }
+
         if (!"PENDIENTE_PAGO".equals(orden.getEstado())) {
             throw new OrderException("Solo se puede cancelar una orden pendiente de pago.");
         }
+
         orden.setEstado("CANCELADA");
         liberar(orden.getItems());
         orderRepository.save(orden);
         log.info("Orden {} cancelada", id);
     }
 
+    private Order buscar(Long id) {
+        return orderRepository.findById(id)
+                .orElseThrow(() -> new RecursoNoEncontradoException(
+                        "La orden con id " + id + " no existe"
+                ));
+    }
+
+    private Order buscarParaActualizar(Long id) {
+        return orderRepository.findOrdenById(id)
+                .orElseThrow(() -> new RecursoNoEncontradoException(
+                        "La orden con id " + id + " no existe"
+                ));
+    }
+
     private long calcularDescuento(PromotionDTO promocion, long subtotal) {
         double descuento = "PORCENTAJE".equalsIgnoreCase(promocion.getTipo())
                 ? subtotal * promocion.getValor() / 100
                 : promocion.getValor();
+
         if (promocion.getTope() != null && descuento > promocion.getTope()) {
             descuento = promocion.getTope();
         }
+
         return Math.min(Math.round(descuento), subtotal);
     }
 
     private String mensajeCupon(FeignException e) {
-        Matcher m = MENSAJE_ERROR.matcher(e.contentUTF8());
-        return m.find() ? m.group(1) : "El cupon ingresado no es valido o esta vencido";
+        Matcher matcher = MENSAJE_ERROR.matcher(e.contentUTF8());
+        return matcher.find()
+                ? matcher.group(1)
+                : "El cupon ingresado no es valido o esta vencido";
     }
 
     private ProductDTO buscarProducto(Long productId) {
@@ -195,11 +257,17 @@ public class OrderServiceImpl implements OrderService {
         try {
             producto = productClient.getProductById(productId);
         } catch (FeignException e) {
-            throw new RecursoNoEncontradoException("El producto con id " + productId + " no existe o está inactivo");
+            throw new RecursoNoEncontradoException(
+                    "El producto con id " + productId + " no existe o está inactivo"
+            );
         }
+
         if (producto == null || !"Activo".equals(producto.getEstado())) {
-            throw new OrderException("El producto con id " + productId + " no existe o está inactivo");
+            throw new OrderException(
+                    "El producto con id " + productId + " no existe o está inactivo"
+            );
         }
+
         return producto;
     }
 
@@ -217,11 +285,6 @@ public class OrderServiceImpl implements OrderService {
         InventoryCantidadDTO dto = new InventoryCantidadDTO();
         dto.setCantidad(valor);
         return dto;
-    }
-
-    private Order buscar(Long id) {
-        return orderRepository.findById(id)
-                .orElseThrow(() -> new RecursoNoEncontradoException("La orden con id " + id + " no existe"));
     }
 
     private OrderDetalleDTO toDTO(Order orden) {
