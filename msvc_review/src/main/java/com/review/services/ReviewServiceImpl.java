@@ -51,7 +51,7 @@ public class ReviewServiceImpl implements ReviewService {
 
         try {
             ProductoClientDTO producto = productFeignClient.getProductoById(requestDTO.getProductoId());
-            if (!producto.isEstado()) {
+            if (!"Activo".equals(producto.getEstado())) {
                 throw new ReviewException("Producto no encontrado o inactivo.");
             }
         } catch (feign.FeignException e) {
