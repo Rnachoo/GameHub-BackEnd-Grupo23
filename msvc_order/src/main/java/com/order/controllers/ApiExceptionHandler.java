@@ -49,7 +49,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})
     public ResponseEntity<Map<String, String>> handleFormato(Exception ex) {
-        return error(HttpStatus.BAD_REQUEST, "La solicitud tiene un formato invÃ¡lido.");
+        return error(HttpStatus.BAD_REQUEST, "La solicitud tiene un formato inválido.");
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
@@ -59,13 +59,13 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Map<String, String>> handleSinPermiso(AccessDeniedException ex) {
-        return error(HttpStatus.FORBIDDEN, "No tienes permiso para realizar esta acciÃ³n.");
+        return error(HttpStatus.FORBIDDEN, "No tienes permiso para realizar esta acción.");
     }
 
     @ExceptionHandler(FeignException.class)
     public ResponseEntity<Map<String, String>> handleFeign(FeignException ex) {
         log.error("Error al llamar a otro microservicio: {}", ex.getMessage());
-        return error(HttpStatus.SERVICE_UNAVAILABLE, "Un servicio relacionado no estÃ¡ disponible. Intenta mÃ¡s tarde.");
+        return error(HttpStatus.SERVICE_UNAVAILABLE, "Un servicio relacionado no está disponible. Intenta más tarde.");
     }
 
     @ExceptionHandler(Exception.class)

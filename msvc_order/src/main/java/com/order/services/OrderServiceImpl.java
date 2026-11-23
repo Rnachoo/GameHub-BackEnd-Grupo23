@@ -148,7 +148,10 @@ public class OrderServiceImpl implements OrderService {
         if (!ESTADOS.contains(nuevoEstado)) {
             throw new OrderException("Estado no valido. Use PENDIENTE_PAGO, PAGADA o CANCELADA");
         }
-        if ("CANCELADA".equals(nuevoEstado) && !"CANCELADA".equals(orden.getEstado())) {
+        if ("CANCELADA".equals(orden.getEstado())) {
+            throw new OrderException("Una orden cancelada no puede cambiar de estado.");
+        }
+        if ("CANCELADA".equals(nuevoEstado)) {
             liberar(orden.getItems());
         }
         orden.setEstado(nuevoEstado);

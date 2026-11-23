@@ -114,7 +114,7 @@ public class PaymentServiceImpl implements PaymentService {
                     && this.paymentRepository.existsByOrdenIdAndEstado(payment.getOrdenId(), "APROBADO")) {
                 throw new PaymentException("La orden ya tiene un pago aprobado");
             }
-            actualizarOrden(payment.getOrdenId(), "PAGADA", "No se pudo actualizar el estado de la orden");
+            actualizarOrden(payment.getOrdenId(), "PAGADA", "No se pudo marcar la orden como pagada. Revisa que no esté cancelada.");
         } else if ("RECHAZADO".equals(nuevoEstado)) {
             if ("APROBADO".equals(payment.getEstado())) {
                 actualizarOrden(payment.getOrdenId(), "PENDIENTE_PAGO", "No se pudo actualizar el estado de la orden");

@@ -1,5 +1,6 @@
 package com.payment.controllers;
 
+import com.payment.exceptions.AccesoDenegadoException;
 import com.payment.exceptions.PaymentException;
 import com.payment.exceptions.RecursoNoEncontradoException;
 import feign.FeignException;
@@ -34,6 +35,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(RecursoNoEncontradoException.class)
     public ResponseEntity<Map<String, String>> handleNoEncontrado(RecursoNoEncontradoException ex) {
         return error(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
+
+    @ExceptionHandler(AccesoDenegadoException.class)
+    public ResponseEntity<Map<String, String>> handleAccesoDenegado(AccesoDenegadoException ex) {
+        return error(HttpStatus.FORBIDDEN, ex.getMessage());
     }
 
     @ExceptionHandler(PaymentException.class)
