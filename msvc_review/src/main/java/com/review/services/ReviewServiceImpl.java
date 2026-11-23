@@ -114,10 +114,20 @@ public class ReviewServiceImpl implements ReviewService {
 
     @Transactional(readOnly = true)
     @Override
-    public List<ResenaResponseDTO> getResenasByProductoId(Long productoId) { //lista las reseñas de un producto
-        List<Review> resenas = resenaRepository.findByProductoId(productoId);
-        log.info("Reseñas encontradas para producto ID: {}", productoId);
-        return resenas.stream().map(this::toResponseDTO).toList();
+    public List<ResenaResponseDTO> getResenasByProductoId(Long productoId) {
+        return resenaRepository.findByProductoIdAndEstado(productoId, "Active")
+                .stream()
+                .map(this::toResponseDTO)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public List<ResenaResponseDTO> getResenasParaModerar(Long productoId) {
+        return resenaRepository.findByProductoId(productoId)
+                .stream()
+                .map(this::toResponseDTO)
+                .toList();
     }
 
     @Transactional(readOnly = true)

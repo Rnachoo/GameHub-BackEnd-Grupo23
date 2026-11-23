@@ -12,4 +12,5 @@ public interface ResenaRepository extends JpaRepository<Review, Long> {
     List<Review> findByProductoId(Long productoId);
     List<Review> findByUsuarioId(Long usuarioId);
     boolean existsByUsuarioIdAndProductoIdAndOrdenId(Long usuarioId, Long productoId, Long ordenId);
+    List<Review> findByProductoIdAndEstado(Long productoId, String estado);
 }
