@@ -43,7 +43,7 @@ public class TokenServicioConfig {
                     .subject(nombreServicio)
                     .issuedAt(ahora)
                     .expiresAt(ahora.plus(MINUTOS_VALIDEZ, ChronoUnit.MINUTES))
-                    .claim("roles", List.of("ROLE_ADMIN", "STOCK_ORDENES"))
+                    .claim("roles", List.of("ROLE_ADMIN", "STOCK_ORDENES", "APLICAR_CUPONES"))
                     .build();
             String token = encoder.encode(JwtEncoderParameters.from(cabecera, claims)).getTokenValue();
             template.header("Authorization", "Bearer " + token);

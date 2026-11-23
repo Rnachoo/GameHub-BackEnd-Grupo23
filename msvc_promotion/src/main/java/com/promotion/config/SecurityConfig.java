@@ -47,7 +47,7 @@ public class SecurityConfig {
                         .requestMatchers("/docs/**", "/swagger-ui/**", "/v3/api-docs/**", "/h2-console/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/promociones/codigo/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/promociones", "/api/v1/promociones/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/api/v1/promociones/*/aplicar").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/promociones/*/aplicar").hasAuthority("APLICAR_CUPONES")
                         .requestMatchers("/api/v1/promociones", "/api/v1/promociones/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

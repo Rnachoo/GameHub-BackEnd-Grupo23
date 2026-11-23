@@ -24,7 +24,7 @@ public class TokenServicioConfig {
 
     private static final long MINUTOS_VALIDEZ = 5;
 
-    @Value("${jwt.secret:EstaEsUnaClaveSecretaSuperSeguraYLargaDeAlMenos32Caracteres}")
+    @Value("${jwt.secret}")
     private String secret;
 
     @Value("${spring.application.name}")
