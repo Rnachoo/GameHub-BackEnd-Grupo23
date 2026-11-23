@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 @FeignClient(
         name = "msvc-inventory",
-        url = "http://localhost:8005/api/v1/inventories"
+        url = "${GAMEHUB_INVENTORY_URL:http://localhost:8005}/api/v1/inventories"
 )
 public interface InventoryClient {
 

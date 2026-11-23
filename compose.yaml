@@ -1,0 +1,227 @@
+name: gamehub
+
+x-eureka-dependency: &eureka-dependency
+  msvc-eureka:
+    condition: service_healthy
+
+x-client-environment: &client-environment
+  SPRING_APPLICATION_JSON: '{"eureka":{"client":{"service-url":{"defaultZone":"http://msvc-eureka:8761/eureka/"}}}}'
+  JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET en el archivo .env}
+
+x-database-environment: &database-environment
+  <<: *client-environment
+  DB_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD en el archivo .env}
+  SPRING_H2_CONSOLE_ENABLED: "false"
+
+x-microservice: &microservice
+  restart: unless-stopped
+  depends_on: *eureka-dependency
+  healthcheck:
+    test: ["CMD-SHELL", "curl --silent --output /dev/null --max-time 3 http://127.0.0.1:$${SERVER_PORT}/"]
+    interval: 10s
+    timeout: 5s
+    start_period: 60s
+    retries: 12
+
+services:
+  msvc-eureka:
+    build:
+      context: .
+      args:
+        MODULE: msvc-eureka
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--output", "/dev/null", "http://127.0.0.1:8761/eureka/apps"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 12
+
+  msvc-auth:
+    <<: *microservice
+    build:
+      context: .
+      args:
+        MODULE: msvc_auth
+    environment:
+      <<: *database-environment
+      SERVER_PORT: "8000"
+      SEED_PASSWORD: ${SEED_PASSWORD:-}
+      GAMEHUB_USER_URL: http://msvc-user:8002
+    volumes:
+      - auth-data:/app/data
+
+  msvc-user:
+    <<: *microservice
+    build:
+      context: .
+      args:
+        MODULE: msvc_user
+    environment:
+      <<: *database-environment
+      SERVER_PORT: "8002"
+      SEED_PASSWORD: ${SEED_PASSWORD:-}
+    volumes:
+      - user-data:/app/data
+
+  msvc-category:
+    <<: *microservice
+    build:
+      context: .
+      args:
+        MODULE: msvc_category
+    environment:
+      <<: *database-environment
+      SERVER_PORT: "8004"
+    volumes:
+      - category-data:/app/data
+
+  msvc-inventory:
+    <<: *microservice
+    build:
+      context: .
+      args:
+        MODULE: msvc_inventory
+    environment:
+      <<: *database-environment
+      SERVER_PORT: "8005"
+      GAMEHUB_PRODUCT_URL: http://msvc-product:8091
+    volumes:
+      - inventory-data:/app/data
+
+  msvc-order:
+    <<: *microservice
+    build:
+      context: .
+      args:
+        MODULE: msvc_order
+    environment:
+      <<: *database-environment
+      SERVER_PORT: "8001"
+      GAMEHUB_USER_URL: http://msvc-user:8002
+      GAMEHUB_INVENTORY_URL: http://msvc-inventory:8005
+      GAMEHUB_PROMOTION_URL: http://msvc-promotion:8009
+      GAMEHUB_PRODUCT_URL: http://msvc-product:8091
+    volumes:
+      - order-data:/app/data
+
+  msvc-payment:
+    <<: *microservice
+    build:
+      context: .
+      args:
+        MODULE: msvc_payment
+    environment:
+      <<: *database-environment
+      SERVER_PORT: "8003"
+      GAMEHUB_ORDER_URL: http://msvc-order:8001
+      GAMEHUB_USER_URL: http://msvc-user:8002
+    volumes:
+      - payment-data:/app/data
+
+  msvc-product:
+    <<: *microservice
+    build:
+      context: .
+      args:
+        MODULE: msvc_product
+    environment:
+      <<: *database-environment
+      SERVER_PORT: "8091"
+      GAMEHUB_CATEGORY_URL: http://msvc-category:8004
+    volumes:
+      - product-data:/app/data
+
+  msvc-promotion:
+    <<: *microservice
+    build:
+      context: .
+      args:
+        MODULE: msvc_promotion
+    environment:
+      <<: *database-environment
+      SERVER_PORT: "8009"
+      GAMEHUB_CATEGORY_URL: http://msvc-category:8004
+    volumes:
+      - promotion-data:/app/data
+
+  msvc-review:
+    <<: *microservice
+    build:
+      context: .
+      args:
+        MODULE: msvc_review
+    environment:
+      <<: *database-environment
+      SERVER_PORT: "8040"
+      GAMEHUB_USER_URL: http://msvc-user:8002
+      GAMEHUB_PRODUCT_URL: http://msvc-product:8091
+      GAMEHUB_ORDER_URL: http://msvc-order:8001
+    volumes:
+      - review-data:/app/data
+
+  msvc-shipping:
+    <<: *microservice
+    build:
+      context: .
+      args:
+        MODULE: msvc_shipping
+    environment:
+      <<: *database-environment
+      SERVER_PORT: "8090"
+      GAMEHUB_USER_URL: http://msvc-user:8002
+      GAMEHUB_ORDER_URL: http://msvc-order:8001
+    volumes:
+      - shipping-data:/app/data
+
+  msvc-gateway:
+    build:
+      context: .
+      args:
+        MODULE: msvc-gateway
+    restart: unless-stopped
+    depends_on:
+      <<: *eureka-dependency
+      msvc-auth:
+        condition: service_healthy
+      msvc-user:
+        condition: service_healthy
+      msvc-category:
+        condition: service_healthy
+      msvc-inventory:
+        condition: service_healthy
+      msvc-order:
+        condition: service_healthy
+      msvc-payment:
+        condition: service_healthy
+      msvc-product:
+        condition: service_healthy
+      msvc-promotion:
+        condition: service_healthy
+      msvc-review:
+        condition: service_healthy
+      msvc-shipping:
+        condition: service_healthy
+    environment:
+      <<: *client-environment
+      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:-http://localhost:5173,https://v2-gamehub-frontend-grupo13.vercel.app}"
+    ports:
+      - "127.0.0.1:${GATEWAY_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent --output /dev/null http://127.0.0.1:8080/api/v1/productos && curl --fail --silent --output /dev/null http://127.0.0.1:8080/api/v1/categories && curl --fail --silent --output /dev/null http://127.0.0.1:8080/api/v1/inventories"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 12
+
+volumes:
+  auth-data:
+  user-data:
+  category-data:
+  inventory-data:
+  order-data:
+  payment-data:
+  product-data:
+  promotion-data:
+  review-data:
+  shipping-data:
