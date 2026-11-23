@@ -47,7 +47,12 @@ public class SecurityConfig {
                         .requestMatchers("/docs/**", "/swagger-ui/**", "/v3/api-docs/**", "/h2-console/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/inventories", "/api/v1/inventories/producto/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/inventories/**").hasAnyRole("ADMIN", "OPERADOR")
-                        .requestMatchers(HttpMethod.PUT, "/api/v1/inventories/producto/**").hasAnyRole("ADMIN", "USER")
+                        .requestMatchers(
+                                HttpMethod.PUT,
+                                "/api/v1/inventories/producto/{productId}/reservar",
+                                "/api/v1/inventories/producto/{productId}/liberar",
+                                "/api/v1/inventories/producto/{productId}/confirmar-venta"
+                        ).hasAuthority("STOCK_ORDENES")
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/inventories/*/cantidad").hasAnyRole("ADMIN", "OPERADOR")
                         .requestMatchers("/api/v1/inventories", "/api/v1/inventories/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
