@@ -11,5 +11,6 @@ public class UsuarioClientDTO {
     private Long id;
     private String nombreUser;
     private String estado;
+    private String email;
     private List<DireccionClientDTO> directionsDTO;
 }
