@@ -13,4 +13,5 @@ public interface PaymentService {
     PaymentDetalleDTO save (PaymentSaveDTO paymentSaveDTO);
     PaymentDetalleDTO updateEstado(Long id, PaymentUpdateEstadoDTO paymentUpdateEstadoDTO);
     PaymentDetalleDTO nullById(Long id);
+    void validarDueno(Long ordenId, String email);
 }

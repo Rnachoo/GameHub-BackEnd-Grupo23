@@ -1,6 +1,8 @@
 package com.payment.services;
 
 import com.payment.clients.OrdenClient;
+import com.payment.clients.UserClient;
+import com.payment.exceptions.AccesoDenegadoException;
 import com.payment.exceptions.PaymentException;
 import com.payment.exceptions.RecursoNoEncontradoException;
 import com.payment.models.Payment;
@@ -9,6 +11,7 @@ import com.payment.models.dtos.OrderUpdateEstadoDTO;
 import com.payment.models.dtos.PaymentDetalleDTO;
 import com.payment.models.dtos.PaymentSaveDTO;
 import com.payment.models.dtos.PaymentUpdateEstadoDTO;
+import com.payment.models.dtos.UserDTO;
 import com.payment.repositories.PaymentRepository;
 import feign.FeignException;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +34,9 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Autowired
     private OrdenClient ordenClient;
+
+    @Autowired
+    private UserClient userClient;
 
     @Transactional(readOnly = true)
     @Override
@@ -163,5 +169,20 @@ public class PaymentServiceImpl implements PaymentService {
         dto.setCodigoTransaccion(payment.getCodigoTransaccion());
         dto.setFecha(payment.getFecha());
         return dto;
+    }
+
+    @Override
+    public void validarDueno(Long ordenId, String email) {
+        OrderDTO orden;
+        UserDTO usuario;
+        try {
+            orden = ordenClient.getOrdenById(ordenId);
+            usuario = userClient.getUserById(orden.getUserId());
+        } catch (FeignException e) {
+            throw new RecursoNoEncontradoException("La orden a pagar no existe");
+        }
+        if (usuario.getEmail() == null || !usuario.getEmail().equalsIgnoreCase(email)) {
+            throw new AccesoDenegadoException("No tienes permiso para pagar o ver pagos de otro usuario");
+        }
     }
 }

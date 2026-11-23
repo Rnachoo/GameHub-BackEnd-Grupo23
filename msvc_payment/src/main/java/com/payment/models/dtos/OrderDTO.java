@@ -11,6 +11,7 @@ import lombok.ToString;
 @NoArgsConstructor
 public class OrderDTO {
     private Long id;
+    private Long userId;
     private Long total;
     private String estado;
 }
