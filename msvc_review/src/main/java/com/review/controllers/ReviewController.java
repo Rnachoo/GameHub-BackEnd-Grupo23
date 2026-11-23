@@ -18,6 +18,8 @@ import org.springframework.hateoas.CollectionModel;
 import org.springframework.hateoas.EntityModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -96,7 +98,10 @@ public class ReviewController {
             @ApiResponse(responseCode = "201", description = "Reseña creada exitosamente"),
             @ApiResponse(responseCode = "400", description = "Datos inválidos")
     })
-    public ResponseEntity<EntityModel<ResenaResponseDTO>> save(@Valid @RequestBody ResenaRequestDTO requestDTO) {
+    public ResponseEntity<EntityModel<ResenaResponseDTO>> save(@Valid @RequestBody ResenaRequestDTO requestDTO, @AuthenticationPrincipal Jwt jwt) {
+        if (esCliente(jwt)) {
+            reviewService.validarDueno(requestDTO.getUsuarioId(), jwt.getSubject());
+        }
         EntityModel<ResenaResponseDTO> entityModel = reviewModelAssembler.toModel(reviewService.createResena(requestDTO));
         return ResponseEntity.status(HttpStatus.CREATED).body(entityModel);
     }
@@ -110,7 +115,11 @@ public class ReviewController {
     public ResponseEntity<EntityModel<ResenaResponseDTO>> update(
             @Parameter(description = "ID de la reseña", required = true, example = "1")
             @PathVariable Long id,
-            @Valid @RequestBody ResenaUpdateDTO requestDTO) {
+            @Valid @RequestBody ResenaUpdateDTO requestDTO,
+            @AuthenticationPrincipal Jwt jwt) {
+        if (esCliente(jwt)) {
+            reviewService.validarDuenoResena(id, jwt.getSubject());
+        }
         EntityModel<ResenaResponseDTO> entityModel = reviewModelAssembler.toModel(reviewService.updateResena(id, requestDTO));
         return ResponseEntity.status(HttpStatus.OK).body(entityModel);
     }
@@ -126,5 +135,13 @@ public class ReviewController {
             @PathVariable Long id) {
         EntityModel<ResenaResponseDTO> entityModel = reviewModelAssembler.toModel(reviewService.moderarResena(id));
         return ResponseEntity.status(HttpStatus.OK).body(entityModel);
+    }
+
+    private boolean esCliente(Jwt jwt) {
+        if (jwt == null) {
+            return false;
+        }
+        List<String> roles = jwt.getClaimAsStringList("roles");
+        return roles == null || !roles.contains("ROLE_ADMIN");
     }
 }

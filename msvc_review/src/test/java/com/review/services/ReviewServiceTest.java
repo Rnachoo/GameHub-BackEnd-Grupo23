@@ -4,6 +4,7 @@ import com.review.clients.OrderFeignClient;
 import com.review.clients.ProductFeignClient;
 import com.review.clients.UserFeignClient;
 import com.review.clients.dtos.OrdenClientDTO;
+import com.review.clients.dtos.OrdenItemClientDTO;
 import com.review.clients.dtos.ProductoClientDTO;
 import com.review.clients.dtos.UsuarioClientDTO;
 import com.review.exceptions.ReviewException;
@@ -65,7 +66,11 @@ public class ReviewServiceTest {
         this.productoMock.setEstado("Activo");
 
         this.ordenMock = new OrdenClientDTO();
-        this.ordenMock.setUsuarioId(1L); // Debe coincidir con el usuario que hace la reseña
+        this.ordenMock.setUsuarioId(1L);
+        this.ordenMock.setEstado("PAGADA");
+        OrdenItemClientDTO itemMock = new OrdenItemClientDTO();
+        itemMock.setProductId(50L);
+        this.ordenMock.setItems(List.of(itemMock));
 
         // 2. Simulación de la Entidad Review
         this.resenaPrueba = new Review();

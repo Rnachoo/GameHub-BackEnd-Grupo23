@@ -6,6 +6,8 @@ import com.review.clients.UserFeignClient;
 import com.review.clients.dtos.OrdenClientDTO;
 import com.review.clients.dtos.ProductoClientDTO;
 import com.review.clients.dtos.UsuarioClientDTO;
+import com.review.exceptions.AccesoDenegadoException;
+import com.review.exceptions.RecursoNoEncontradoException;
 import com.review.exceptions.ReviewException;
 import com.review.models.Review;
 import com.review.models.dtos.ResenaRequestDTO;
@@ -40,13 +42,14 @@ public class ReviewServiceImpl implements ReviewService {
     @Override
     public ResenaResponseDTO createResena(ResenaRequestDTO requestDTO) {
 
+        UsuarioClientDTO usuario;
         try {
-            UsuarioClientDTO usuario = userFeignClient.getUsuarioById(requestDTO.getUsuarioId());
-            if (!"Active".equals(usuario.getEstado())) {
-                throw new ReviewException("Usuario no encontrado o inactivo.");
-            }
+            usuario = userFeignClient.getUsuarioById(requestDTO.getUsuarioId());
         } catch (feign.FeignException e) {
-            throw new ReviewException("Usuario no encontrado.");
+            throw new RecursoNoEncontradoException("Usuario no encontrado.");
+        }
+        if (!"Active".equals(usuario.getEstado())) {
+            throw new ReviewException("Usuario no encontrado o inactivo.");
         }
 
         try {
@@ -55,18 +58,28 @@ public class ReviewServiceImpl implements ReviewService {
                 throw new ReviewException("Producto no encontrado o inactivo.");
             }
         } catch (feign.FeignException e) {
-            throw new ReviewException("Producto no encontrado.");
+            throw new RecursoNoEncontradoException("Producto no encontrado.");
         }
 
         OrdenClientDTO orden;
         try {
             orden = orderFeignClient.getOrdenById(requestDTO.getOrdenId());
         } catch (feign.FeignException e) {
-            throw new ReviewException("Orden no encontrada.");
+            throw new RecursoNoEncontradoException("Orden no encontrada.");
         }
 
-        if (!orden.getUsuarioId().equals(requestDTO.getUsuarioId())) {
-            throw new ReviewException("El usuario no es dueño de la orden.");
+        if (!requestDTO.getUsuarioId().equals(orden.getUsuarioId())) {
+            throw new AccesoDenegadoException("El usuario no es dueño de la orden.");
+        }
+
+        if (!"PAGADA".equals(orden.getEstado())) {
+            throw new ReviewException("Solo se puede reseñar una orden pagada.");
+        }
+
+        boolean comprado = orden.getItems().stream()
+                .anyMatch(item -> requestDTO.getProductoId().equals(item.getProductId()));
+        if (!comprado) {
+            throw new ReviewException("El producto no está en la orden.");
         }
 
         if (resenaRepository.existsByUsuarioIdAndProductoIdAndOrdenId(
@@ -76,6 +89,7 @@ public class ReviewServiceImpl implements ReviewService {
 
         Review resena = new Review();
         resena.setUsuarioId(requestDTO.getUsuarioId());
+        resena.setNombreAutor(usuario.getNombreUser());
         resena.setProductoId(requestDTO.getProductoId());
         resena.setOrdenId(requestDTO.getOrdenId());
         resena.setPuntuacion(requestDTO.getPuntuacion());
@@ -93,7 +107,7 @@ public class ReviewServiceImpl implements ReviewService {
     @Override
     public ResenaResponseDTO getResenaById(Long id) { //busca reseña x id
         Review resena = resenaRepository.findById(id)
-                .orElseThrow(() -> new ReviewException("Reseña no encontrada con ID: " + id));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Reseña no encontrada con ID: " + id));
         log.info("Reseña encontrada con ID: {}", id);
         return toResponseDTO(resena);
     }
@@ -118,7 +132,7 @@ public class ReviewServiceImpl implements ReviewService {
     @Override
     public ResenaResponseDTO updateResena(Long id, ResenaUpdateDTO requestDTO) {
         Review resena = resenaRepository.findById(id)
-                .orElseThrow(() -> new ReviewException("Reseña no encontrada con ID: " + id));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Reseña no encontrada con ID: " + id));
 
         if ("Inactive".equals(resena.getEstado())) {
             throw new ReviewException("No se puede actualizar una reseña moderada.");
@@ -136,7 +150,7 @@ public class ReviewServiceImpl implements ReviewService {
     @Override
     public ResenaResponseDTO moderarResena(Long id) { //desactiva una reseña (moderacion)
         Review resena = resenaRepository.findById(id)
-                .orElseThrow(() -> new ReviewException("Reseña no encontrada con ID: " + id));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Reseña no encontrada con ID: " + id));
 
         resena.setEstado("Inactive");
         Review updated = resenaRepository.save(resena);
@@ -148,6 +162,7 @@ public class ReviewServiceImpl implements ReviewService {
         ResenaResponseDTO dto = new ResenaResponseDTO();
         dto.setId(resena.getId());
         dto.setUsuarioId(resena.getUsuarioId());
+        dto.setNombreAutor(resena.getNombreAutor());
         dto.setProductoId(resena.getProductoId());
         dto.setOrdenId(resena.getOrdenId());
         dto.setPuntuacion(resena.getPuntuacion());
@@ -155,5 +170,25 @@ public class ReviewServiceImpl implements ReviewService {
         dto.setEstado(resena.getEstado());
         dto.setFecha(resena.getFecha());
         return dto;
+    }
+
+    @Override
+    public void validarDueno(Long usuarioId, String email) {
+        UsuarioClientDTO usuario;
+        try {
+            usuario = userFeignClient.getUsuarioById(usuarioId);
+        } catch (feign.FeignException e) {
+            throw new RecursoNoEncontradoException("Usuario no encontrado.");
+        }
+        if (usuario.getEmail() == null || !usuario.getEmail().equalsIgnoreCase(email)) {
+            throw new AccesoDenegadoException("No puedes escribir reseñas a nombre de otro usuario.");
+        }
+    }
+
+    @Override
+    public void validarDuenoResena(Long id, String email) {
+        Review resena = resenaRepository.findById(id)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Reseña no encontrada con ID: " + id));
+        validarDueno(resena.getUsuarioId(), email);
     }
 }

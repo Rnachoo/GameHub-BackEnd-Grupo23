@@ -11,6 +11,7 @@ public class ResenaResponseDTO {
 
     private Long id;
     private Long usuarioId;
+    private String nombreAutor;
     private Long productoId;
     private Long ordenId;
     private Integer puntuacion;

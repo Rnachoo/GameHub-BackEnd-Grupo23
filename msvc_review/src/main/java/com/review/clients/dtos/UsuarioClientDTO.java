@@ -9,5 +9,6 @@ import lombok.*;
 public class UsuarioClientDTO {
     private Long id;
     private String nombreUser;
+    private String email;
     private String estado;
 }
