@@ -20,7 +20,6 @@ import java.nio.charset.StandardCharsets;
 @Configuration
 public class SecurityConfig {
 
-    // CORREGIDO: Se agregó el valor por defecto para evitar el PlaceholderResolutionException 👇
     @Value("${jwt.secret}")
     private String secret;
 
@@ -46,10 +45,9 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/docs/**", "/swagger-ui/**", "/v3/api-docs/**", "/h2-console/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/despachos/**")
-                        .hasAnyRole("ADMIN", "USER")
-                        .requestMatchers("/api/v1/despachos/**")
-                        .hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/despachos/**").hasAnyRole("USER", "OPERADOR", "ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/despachos").hasAnyRole("OPERADOR", "ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/despachos/**").hasAnyRole("OPERADOR", "ADMIN")
                         .anyRequest().authenticated())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.jwtAuthenticationConverter(converter)))
