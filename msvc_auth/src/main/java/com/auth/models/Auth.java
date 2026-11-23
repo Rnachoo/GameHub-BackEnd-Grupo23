@@ -21,7 +21,6 @@ import java.util.Set;
 public class Auth {
 
     @NotBlank(message = "El nombre de cuenta es obligatorio")
-    @Column(unique = true)
     private String nombreCuenta;
 
     @Id
