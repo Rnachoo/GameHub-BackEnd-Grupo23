@@ -230,6 +230,8 @@ class OrderServiceTest {
         OrderDetalleDTO resultado = orderService.updateEstado(100L, cambioA("PAGADA"));
 
         assertThat(resultado.getEstado()).isEqualTo("PAGADA");
+        verify(inventoryClient).confirmarStockOrden(100L, movimiento(1L));
+        assertThat(ordenPrueba.getRevisionStock()).isEqualTo(1L);
         verify(orderRepository).findOrdenById(100L);
         verify(orderRepository).save(ordenPrueba);
     }
@@ -264,16 +266,12 @@ class OrderServiceTest {
     @DisplayName("Cancela una orden pendiente y libera su reserva")
     void shouldCancelarOrden() {
         when(orderRepository.findOrdenById(100L)).thenReturn(Optional.of(ordenPrueba));
-        when(inventoryClient.liberarStock(eq(10L), any(InventoryCantidadDTO.class)))
-                .thenReturn(inventario);
+
 
         orderService.cancelarOrden(100L);
 
         assertThat(ordenPrueba.getEstado()).isEqualTo("CANCELADA");
-        verify(inventoryClient).liberarStock(
-                eq(10L),
-                argThat(dto -> Long.valueOf(2L).equals(dto.getCantidad()))
-        );
+        verify(inventoryClient).cambiarEstadoStockOrden(100L, "PENDIENTE_PAGO", "CANCELADA", movimiento(1L));
         verify(orderRepository).save(ordenPrueba);
     }
 
@@ -289,6 +287,45 @@ class OrderServiceTest {
 
         verifyNoInteractions(inventoryClient);
         verify(orderRepository, never()).save(any(Order.class));
+    }
+
+    @Test
+    @DisplayName("Tras un fallo remoto, el reintento usa la misma revisión")
+    void reintentarAprobacionReutilizaRevision() {
+        ordenPrueba.setRevisionStock(2L);
+        when(orderRepository.findOrdenById(100L)).thenReturn(Optional.of(ordenPrueba));
+        when(orderRepository.save(ordenPrueba)).thenReturn(ordenPrueba);
+        doThrow(mock(FeignException.class)).doNothing()
+                .when(inventoryClient).confirmarStockOrden(100L, movimiento(3L));
+
+        assertThatThrownBy(() -> orderService.updateEstado(100L, cambioA("PAGADA")))
+                .isInstanceOf(FeignException.class);
+        assertThat(ordenPrueba.getEstado()).isEqualTo("PENDIENTE_PAGO");
+        assertThat(ordenPrueba.getRevisionStock()).isEqualTo(2L);
+        verify(orderRepository, never()).save(any(Order.class));
+
+        orderService.updateEstado(100L, cambioA("PAGADA"));
+        verify(inventoryClient, times(2)).confirmarStockOrden(100L, movimiento(3L));
+        assertThat(ordenPrueba.getRevisionStock()).isEqualTo(3L);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"PENDIENTE_PAGO", "CANCELADA"})
+    void reviertePagoAprobado(String destino) {
+        ordenPrueba.setEstado("PAGADA");
+        ordenPrueba.setRevisionStock(1L);
+        when(orderRepository.findOrdenById(100L)).thenReturn(Optional.of(ordenPrueba));
+        when(orderRepository.save(ordenPrueba)).thenReturn(ordenPrueba);
+
+        OrderDetalleDTO resultado = orderService.updateEstado(100L, cambioA(destino));
+
+        verify(inventoryClient).cambiarEstadoStockOrden(100L, "PAGADA", destino, movimiento(2L));
+        assertThat(resultado.getEstado()).isEqualTo(destino);
+        assertThat(ordenPrueba.getRevisionStock()).isEqualTo(2L);
+    }
+
+    private MovimientoStockOrdenDTO movimiento(long revision) {
+        return new MovimientoStockOrdenDTO(revision, List.of(new MovimientoStockOrdenDTO.Linea(10L, 2L)));
     }
 
     private OrderSaveDTO solicitudDeOrden() {

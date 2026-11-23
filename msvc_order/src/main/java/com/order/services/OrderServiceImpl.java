@@ -190,9 +190,7 @@ public class OrderServiceImpl implements OrderService {
             throw new OrderException("Una orden cancelada no puede cambiar de estado.");
         }
 
-        if ("CANCELADA".equals(nuevoEstado)) {
-            liberar(orden.getItems());
-        }
+        sincronizarStock(orden, nuevoEstado);
 
         orden.setEstado(nuevoEstado);
         Order guardada = orderRepository.save(orden);
@@ -213,10 +211,27 @@ public class OrderServiceImpl implements OrderService {
             throw new OrderException("Solo se puede cancelar una orden pendiente de pago.");
         }
 
+        sincronizarStock(orden, "CANCELADA");
         orden.setEstado("CANCELADA");
-        liberar(orden.getItems());
         orderRepository.save(orden);
         log.info("Orden {} cancelada", id);
+    }
+
+    private void sincronizarStock(Order orden, String destino) {
+        String origen = orden.getEstado();
+        long anterior = orden.getRevisionStock() == null ? 0L : orden.getRevisionStock();
+        long revision = Math.incrementExact(anterior);
+        List<MovimientoStockOrdenDTO.Linea> items = orden.getItems().stream()
+                .map(item -> new MovimientoStockOrdenDTO.Linea(item.getProductId(), item.getCantidad()))
+                .toList();
+        MovimientoStockOrdenDTO solicitud = new MovimientoStockOrdenDTO(revision, items);
+
+        if ("PENDIENTE_PAGO".equals(origen) && "PAGADA".equals(destino)) {
+            inventoryClient.confirmarStockOrden(orden.getId(), solicitud);
+        } else {
+            inventoryClient.cambiarEstadoStockOrden(orden.getId(), origen, destino, solicitud);
+        }
+        orden.setRevisionStock(revision);
     }
 
     private Order buscar(Long id) {
