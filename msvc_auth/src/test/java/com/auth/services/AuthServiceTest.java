@@ -204,6 +204,13 @@ public class AuthServiceTest {
         AuthUpdatePasswordDTO passwordDTO = new AuthUpdatePasswordDTO();
         passwordDTO.setPassword("newRawPassword");
 
+        passwordDTO.setPasswordActual("currentRawPassword");
+
+        when(this.passwordEncoder.matches(
+                passwordDTO.getPasswordActual(),
+                this.authPrueba.getPassword()
+        )).thenReturn(true);
+
         when(this.authRepository.findById(id)).thenReturn(Optional.of(this.authPrueba));
         when(this.passwordEncoder.encode(passwordDTO.getPassword())).thenReturn("newEncodedPassword");
         when(this.authRepository.save(any(Auth.class))).thenAnswer(i -> i.getArgument(0));
