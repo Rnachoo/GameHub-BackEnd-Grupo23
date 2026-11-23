@@ -88,19 +88,27 @@ public class PaymentController {
 
     //Buscar un Pago por su ID
     @GetMapping("/{id}")
-    @Operation(summary = "Buscar Pago por ID", description = "Devuelve los detalles de un comprobante de pago específico")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Pago encontrado",
-                    content = @Content(mediaType = "application/json",
-                            schema = @Schema(implementation = PaymentDetalleDTO.class))),
+    @Operation(
+            summary = "Buscar pago por ID",
+            description = "Devuelve el comprobante si el usuario tiene permiso para consultarlo"
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Pago encontrado"),
+            @ApiResponse(responseCode = "401", description = "Se requiere autenticación"),
+            @ApiResponse(responseCode = "403", description = "Sin permiso para consultar este pago"),
             @ApiResponse(responseCode = "404", description = "Pago no encontrado")
     })
     public ResponseEntity<EntityModel<PaymentDetalleDTO>> findById(
-            @Parameter(description = "ID de un Pago", required = true, example = "1")
-            @PathVariable Long id
-    ){
-        EntityModel<PaymentDetalleDTO> entityModel = paymentModelAssembler.toModel(paymentService.findById(id));
-        return ResponseEntity.status(HttpStatus.OK).body(entityModel);
+            @PathVariable Long id,
+            @AuthenticationPrincipal Jwt jwt
+    ) {
+        PaymentDetalleDTO pago = paymentService.findById(id);
+
+        if (esCliente(jwt)) {
+            paymentService.validarDueno(pago.getOrdenId(), jwt.getSubject());
+        }
+
+        return ResponseEntity.ok(paymentModelAssembler.toModel(pago));
     }
 
 
