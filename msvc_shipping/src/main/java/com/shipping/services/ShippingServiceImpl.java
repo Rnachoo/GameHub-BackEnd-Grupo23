@@ -4,6 +4,7 @@ import com.shipping.clients.OrderFeignClient;
 import com.shipping.clients.UserFeignClient;
 import com.shipping.clients.dtos.OrdenClientDTO;
 import com.shipping.clients.dtos.UsuarioClientDTO;
+import com.shipping.exceptions.RecursoNoEncontradoException;
 import com.shipping.exceptions.ShippingException;
 import com.shipping.models.Despacho;
 import com.shipping.models.EstadoDespacho;
@@ -38,7 +39,7 @@ public class ShippingServiceImpl implements ShippingService {
         try {
             orden = orderFeignClient.getOrdenById(requestDTO.getOrdenId());
         } catch (feign.FeignException e) {
-            throw new ShippingException("La orden ingresada no existe.");
+            throw new RecursoNoEncontradoException("La orden ingresada no existe.");
         }
 
         if (!"PAGADA".equals(orden.getEstado())) {
@@ -49,15 +50,21 @@ public class ShippingServiceImpl implements ShippingService {
         try {
             usuario = userFeignClient.getUsuarioById(requestDTO.getUsuarioId());
         } catch (feign.FeignException e) {
-            throw new ShippingException("Usuario no encontrado con ID: " + requestDTO.getUsuarioId());
+            throw new RecursoNoEncontradoException("Usuario no encontrado con ID: " + requestDTO.getUsuarioId());
         }
 
         if (usuario.getDirectionsDTO() == null || usuario.getDirectionsDTO().isEmpty()) {
             throw new ShippingException("El usuario no tiene dirección registrada.");
         }
 
-        if (!orden.getUsuarioId().equals(requestDTO.getUsuarioId())) {
+        if (!requestDTO.getUsuarioId().equals(orden.getUsuarioId())) {
             throw new ShippingException("El usuario que solicita el envío no es el dueño de la orden.");
+        }
+
+        boolean tieneDespacho = despachoRepository.findByOrdenId(requestDTO.getOrdenId()).stream()
+                .anyMatch(d -> d.getEstado() != EstadoDespacho.CANCELADO);
+        if (tieneDespacho) {
+            throw new ShippingException("La orden ya tiene un despacho activo.");
         }
 
         if (requestDTO.getTracking() != null && !requestDTO.getTracking().isBlank()) {
@@ -83,7 +90,7 @@ public class ShippingServiceImpl implements ShippingService {
     @Override
     public DespachoResponseDTO getDespachoById(Long id) { //busca despacho por id
         Despacho despacho = despachoRepository.findById(id)
-                .orElseThrow(() -> new ShippingException("Despacho no encontrado con ID: " + id));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Despacho no encontrado con ID: " + id));
         log.info("Despacho encontrado con ID: {}", id);
         return toResponseDTO(despacho);
     }
@@ -108,7 +115,7 @@ public class ShippingServiceImpl implements ShippingService {
     @Transactional(readOnly = true)
     @Override
     public List<DespachoResponseDTO> getDespachosByEstado(String estado) { //lista despachos por estado
-        EstadoDespacho estadoDespacho = EstadoDespacho.valueOf(estado.toUpperCase());
+        EstadoDespacho estadoDespacho = convertirEstado(estado);
         List<Despacho> despachos = despachoRepository.findByEstado(estadoDespacho);
         log.info("Despachos encontrados con estado: {}", estado);
         return despachos.stream().map(this::toResponseDTO).toList();
@@ -118,9 +125,9 @@ public class ShippingServiceImpl implements ShippingService {
     @Override
     public DespachoResponseDTO updateEstadoDespacho(Long id, String estado, String tracking, LocalDateTime fechaEntrega) { //cambiar estado de despacho
         Despacho despacho = despachoRepository.findById(id)
-                .orElseThrow(() -> new ShippingException("Despacho no encontrado con ID: " + id));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Despacho no encontrado con ID: " + id));
 
-        EstadoDespacho nuevoEstado = EstadoDespacho.valueOf(estado.toUpperCase());
+        EstadoDespacho nuevoEstado = convertirEstado(estado);
 
         if (nuevoEstado == EstadoDespacho.ENTREGADO) {
             if (fechaEntrega == null) {
@@ -146,7 +153,7 @@ public class ShippingServiceImpl implements ShippingService {
     @Override
     public DespachoResponseDTO cancelarDespacho(Long id) { //cancelar despacho por id
         Despacho despacho = despachoRepository.findById(id)
-                .orElseThrow(() -> new ShippingException("Despacho no encontrado con ID: " + id));
+                .orElseThrow(() -> new RecursoNoEncontradoException("Despacho no encontrado con ID: " + id));
 
         if (despacho.getEstado() == EstadoDespacho.ENTREGADO) {
             throw new ShippingException("No se puede cancelar un despacho ya entregado.");
@@ -170,5 +177,13 @@ public class ShippingServiceImpl implements ShippingService {
         dto.setFechaEnvio(despacho.getFechaEnvio());
         dto.setFechaEntrega(despacho.getFechaEntrega());
         return dto;
+    }
+
+    private EstadoDespacho convertirEstado(String estado) {
+        try {
+            return EstadoDespacho.valueOf(estado.toUpperCase());
+        } catch (IllegalArgumentException | NullPointerException e) {
+            throw new ShippingException("Estado de despacho no valido. Use PENDIENTE, EN_CAMINO, ENTREGADO o CANCELADO");
+        }
     }
 }

@@ -13,4 +13,5 @@ public interface OrderService {
     OrderDetalleDTO save (OrderSaveDTO orderSaveDTO);
     OrderDetalleDTO updateEstado(Long id, OrderUpdateEstadoDTO orderUpdateEstadoDTO);
     void cancelarOrden(Long id);
+    void validarDueno(Long userId, String email);
 }

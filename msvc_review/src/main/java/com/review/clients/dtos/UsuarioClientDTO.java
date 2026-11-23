@@ -1,7 +1,6 @@
 package com.review.clients.dtos;
 
 import lombok.*;
-import java.util.List;
 
 @Getter
 @Setter
@@ -10,6 +9,6 @@ import java.util.List;
 public class UsuarioClientDTO {
     private Long id;
     private String nombreUser;
+    private String email;
     private String estado;
-    private List<String> directionsDTO;
 }

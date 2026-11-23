@@ -9,5 +9,5 @@ import lombok.*;
 public class ProductoClientDTO {
     private Long id;
     private String nombre;
-    private boolean estado;
+    private String estado;
 }

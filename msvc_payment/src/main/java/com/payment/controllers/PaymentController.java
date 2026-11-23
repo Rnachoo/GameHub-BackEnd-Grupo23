@@ -18,6 +18,8 @@ import org.springframework.hateoas.CollectionModel;
 import org.springframework.hateoas.EntityModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -46,8 +48,12 @@ public class PaymentController {
     })
     public ResponseEntity<CollectionModel<EntityModel<PaymentDetalleDTO>>> findAllByOrdenId(
             @Parameter(description = "ID de la orden", required = true, example = "1")
-            @PathVariable Long ordenId
+            @PathVariable Long ordenId,
+            @AuthenticationPrincipal Jwt jwt
     ){
+        if (esCliente(jwt)) {
+            paymentService.validarDueno(ordenId, jwt.getSubject());
+        }
         List<EntityModel<PaymentDetalleDTO>> entityModels = paymentService.findAllByOrdenId(ordenId)
                 .stream()
                 .map(paymentModelAssembler::toModel)
@@ -105,7 +111,10 @@ public class PaymentController {
             description = "Objeto con los datos de la orden y monto a pagar", required = true,
             content = @Content(schema = @Schema(implementation = PaymentSaveDTO.class))
     )
-    public ResponseEntity<EntityModel<PaymentDetalleDTO>> save (@Valid @RequestBody PaymentSaveDTO paymentSaveDTO){
+    public ResponseEntity<EntityModel<PaymentDetalleDTO>> save (@Valid @RequestBody PaymentSaveDTO paymentSaveDTO, @AuthenticationPrincipal Jwt jwt){
+        if (esCliente(jwt)) {
+            paymentService.validarDueno(paymentSaveDTO.getOrdenId(), jwt.getSubject());
+        }
         PaymentDetalleDTO paymentCreate = paymentService.save(paymentSaveDTO);
         EntityModel<PaymentDetalleDTO> entityModel = paymentModelAssembler.toModel(paymentCreate);
         return ResponseEntity.status(HttpStatus.CREATED).body(entityModel);
@@ -143,5 +152,13 @@ public class PaymentController {
         PaymentDetalleDTO paymentVoid = paymentService.nullById(id);
         EntityModel<PaymentDetalleDTO> entityModel = paymentModelAssembler.toModel(paymentVoid);
         return ResponseEntity.status(HttpStatus.OK).body(entityModel);
+    }
+
+    private boolean esCliente(Jwt jwt) {
+        if (jwt == null) {
+            return false;
+        }
+        List<String> roles = jwt.getClaimAsStringList("roles");
+        return roles == null || !(roles.contains("ROLE_ADMIN") || roles.contains("ROLE_OPERADOR"));
     }
 }

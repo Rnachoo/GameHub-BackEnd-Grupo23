@@ -16,10 +16,10 @@ public class OrderModelAssembler implements RepresentationModelAssembler<OrderDe
     public EntityModel<OrderDetalleDTO> toModel(OrderDetalleDTO order) {
         return EntityModel.of(
                 order,
-                linkTo(methodOn(OrderController.class).findById(order.getId())).withSelfRel(),
-                linkTo(methodOn(OrderController.class).findByClient(order.getUserId())).withRel("cliente-ordenes"),
+                linkTo(methodOn(OrderController.class).findById(order.getId(), null)).withSelfRel(),
+                linkTo(methodOn(OrderController.class).findByClient(order.getUserId(), null)).withRel("cliente-ordenes"),
                 linkTo(methodOn(OrderController.class).updateEstado(order.getId(), null)).withRel("update-estado"),
-                linkTo(methodOn(OrderController.class).cancelarOrden(order.getId())).withRel("cancelar-orden")
+                linkTo(methodOn(OrderController.class).cancelarOrden(order.getId(), null)).withRel("cancelar-orden")
         );
     }
 }

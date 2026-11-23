@@ -20,6 +20,7 @@ public class PromotionDetalleDTO {
     private LocalDateTime fechaFin;
     private double montoMinimo;
     private Long usosMaximos;
+    private Double tope;
     private String estado;
 
 }

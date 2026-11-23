@@ -2,6 +2,7 @@ package com.shipping.services;
 
 import com.shipping.clients.OrderFeignClient;
 import com.shipping.clients.UserFeignClient;
+import com.shipping.clients.dtos.DireccionClientDTO;
 import com.shipping.clients.dtos.OrdenClientDTO;
 import com.shipping.clients.dtos.UsuarioClientDTO;
 import com.shipping.exceptions.ShippingException;
@@ -63,7 +64,7 @@ public class ShippingServiceTest {
         this.usuarioMock.setId(1L);
         this.usuarioMock.setNombreUser("Juan Perez");
         this.usuarioMock.setEstado("Active");
-        this.usuarioMock.setDirectionsDTO(List.of("Avenida Principal 123")); // Debe tener al menos una dirección
+        this.usuarioMock.setDirectionsDTO(List.of(new DireccionClientDTO()));
 
         // Simulación de Entidad Despacho
         this.despachoPrueba = new Despacho();
@@ -149,7 +150,7 @@ public class ShippingServiceTest {
 
         // Usamos un mock de usuario distinto para que pase la validación de la dirección
         UsuarioClientDTO otroUsuarioMock = new UsuarioClientDTO();
-        otroUsuarioMock.setDirectionsDTO(List.of("Direccion Falsa"));
+        otroUsuarioMock.setDirectionsDTO(List.of(new DireccionClientDTO()));
 
         when(this.orderFeignClient.getOrdenById(requestDTO.getOrdenId())).thenReturn(this.ordenMock);
         when(this.userFeignClient.getUsuarioById(requestDTO.getUsuarioId())).thenReturn(otroUsuarioMock);

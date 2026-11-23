@@ -18,6 +18,8 @@ import org.springframework.hateoas.CollectionModel;
 import org.springframework.hateoas.EntityModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -46,8 +48,10 @@ public class OrderController {
     })
     public ResponseEntity<CollectionModel<EntityModel<OrderDetalleDTO>>> findByClient(
             @Parameter(description = "ID del usuario (cliente)", required = true,example = "1")
-            @PathVariable Long userId
+            @PathVariable Long userId,
+            @AuthenticationPrincipal Jwt jwt
     ){
+        validarDueno(userId, jwt);
         List<EntityModel<OrderDetalleDTO>> entityModels = this.orderService.findByClient(userId)
                 .stream()
                 .map(orderModelAssembler::toModel)
@@ -95,9 +99,12 @@ public class OrderController {
     })
     public ResponseEntity<EntityModel<OrderDetalleDTO>> findById(
             @Parameter(description = "ID de la orden", required = true, example = "1")
-            @PathVariable Long id
+            @PathVariable Long id,
+            @AuthenticationPrincipal Jwt jwt
     ){
-        EntityModel<OrderDetalleDTO> entityModel = this.orderModelAssembler.toModel(orderService.findById(id));
+        OrderDetalleDTO orden = orderService.findById(id);
+        validarDueno(orden.getUserId(), jwt);
+        EntityModel<OrderDetalleDTO> entityModel = this.orderModelAssembler.toModel(orden);
         return ResponseEntity.status(HttpStatus.OK).body(entityModel);
     }
 
@@ -118,7 +125,8 @@ public class OrderController {
                     responseCode = "404",
                     description = "El usuario o alguno de los productos no existe")
     })
-    public ResponseEntity<EntityModel<OrderDetalleDTO>> save(@Valid @RequestBody OrderSaveDTO orderSaveDTO) {
+    public ResponseEntity<EntityModel<OrderDetalleDTO>> save(@Valid @RequestBody OrderSaveDTO orderSaveDTO, @AuthenticationPrincipal Jwt jwt) {
+        validarDueno(orderSaveDTO.getUserId(), jwt);
         OrderDetalleDTO orderCreate = orderService.save(orderSaveDTO);
         EntityModel<OrderDetalleDTO> entityModel = this.orderModelAssembler.toModel(orderCreate);
         return ResponseEntity.status(HttpStatus.CREATED).body(entityModel);
@@ -164,10 +172,22 @@ public class OrderController {
     })
     public ResponseEntity<Void> cancelarOrden(
             @Parameter(description = "ID de la orden a cancelar", required = true, example = "1")
-            @PathVariable Long id
+            @PathVariable Long id,
+            @AuthenticationPrincipal Jwt jwt
     ){
+        validarDueno(orderService.findById(id).getUserId(), jwt);
         orderService.cancelarOrden(id);
         return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
-}
 
+    private void validarDueno(Long userId, Jwt jwt) {
+        if (jwt == null) {
+            return;
+        }
+        List<String> roles = jwt.getClaimAsStringList("roles");
+        if (roles != null && (roles.contains("ROLE_ADMIN") || roles.contains("ROLE_OPERADOR"))) {
+            return;
+        }
+        orderService.validarDueno(userId, jwt.getSubject());
+    }
+}

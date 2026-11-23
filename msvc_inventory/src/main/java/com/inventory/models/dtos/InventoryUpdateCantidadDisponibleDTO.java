@@ -1,6 +1,6 @@
 package com.inventory.models.dtos;
 
-import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -14,16 +14,13 @@ import lombok.ToString;
 public class InventoryUpdateCantidadDisponibleDTO {
 
     @NotNull(message = "El stock disponible es obligatorio")
+    @Min(value = 0, message = "El stock disponible no puede ser negativo")
     private Long stockDisponible;
 
-    @NotNull(message = "El stock reservado es obligatorio")
     private Long stockReservado;
 
-    @NotNull(message = "El stock mínimo es obligatorio")
+    @Min(value = 0, message = "El stock mínimo no puede ser negativo")
     private Long stockMinimo;
 
-    @NotBlank(message = "La ubicación es obligatoria")
     private String ubicacion;
-
-
 }

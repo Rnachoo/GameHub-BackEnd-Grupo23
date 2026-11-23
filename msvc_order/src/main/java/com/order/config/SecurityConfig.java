@@ -44,25 +44,13 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        // Endpoints públicos de documentación y consola
                         .requestMatchers("/docs/**", "/swagger-ui/**", "/v3/api-docs/**", "/h2-console/**").permitAll()
-
-                        // OPERACIONES DE CLIENTE (ADMIN y USER)
-                        // Generar compras (POST)
-                        .requestMatchers(HttpMethod.POST, "/api/v1/ordenes").hasAnyRole("ADMIN", "USER")
-                        // Ver orden propia por ID (GET)
-                        .requestMatchers(HttpMethod.GET, "/api/v1/ordenes/{id}").hasAnyRole("ADMIN", "USER")
-                        // Ver historial de compras por cliente (GET)
-                        .requestMatchers(HttpMethod.GET, "/api/v1/ordenes/cliente/**").hasAnyRole("ADMIN", "USER")
-                        // Cancelar una orden pendiente (PATCH) - CORREGIDO AQUÍ 👇
-                        .requestMatchers(HttpMethod.PATCH, "/api/v1/ordenes/{id}/cancelar").hasAnyRole("ADMIN", "USER")
-
-                        // CONTROL DE LOGÍSTICA INTERNA (Solo ADMIN)
-                        // Buscar órdenes globales de todo el sistema filtradas por su estado
-                        .requestMatchers(HttpMethod.GET, "/api/v1/ordenes/estado/**").hasRole("ADMIN")
-                        // Avanzar estados de la orden como ENVIADO o ENTREGADO (PUT) - CORREGIDO AQUÍ 👇
-                        .requestMatchers(HttpMethod.PUT, "/api/v1/ordenes/{id}/estado").hasRole("ADMIN")
-
+                        .requestMatchers(HttpMethod.POST, "/api/v1/ordenes").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/ordenes/{id}/cancelar").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/ordenes/cliente/**").hasAnyRole("USER", "OPERADOR", "ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/ordenes/estado/**").hasAnyRole("OPERADOR", "ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/ordenes/{id}/estado").hasAnyRole("OPERADOR", "ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/ordenes/{id}").hasAnyRole("USER", "OPERADOR", "ADMIN")
                         .anyRequest().authenticated())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.jwtAuthenticationConverter(converter)))

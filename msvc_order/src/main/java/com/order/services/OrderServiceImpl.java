@@ -4,10 +4,11 @@ import com.order.clients.InventoryClient;
 import com.order.clients.ProductClient;
 import com.order.clients.PromotionClient;
 import com.order.clients.UserClient;
+import com.order.exceptions.AccesoDenegadoException;
 import com.order.exceptions.OrderException;
+import com.order.exceptions.RecursoNoEncontradoException;
 import com.order.models.Order;
 import com.order.models.OrderItem;
-import com.order.models.dtos.*;
 import com.order.models.dtos.*;
 import com.order.repositories.OrderRepository;
 import feign.FeignException;
@@ -19,10 +20,17 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @Slf4j
 public class OrderServiceImpl implements OrderService {
+
+    private static final Set<String> ESTADOS = Set.of("PENDIENTE_PAGO", "PAGADA", "CANCELADA");
+    private static final Pattern MENSAJE_ERROR = Pattern.compile("\"(?:error|mensaje)\"\\s*:\\s*\"([^\"]+)\"");
+
     @Autowired
     private OrderRepository orderRepository;
     @Autowired
@@ -34,87 +42,189 @@ public class OrderServiceImpl implements OrderService {
     @Autowired
     private UserClient userClient;
 
-
     @Transactional(readOnly = true)
     @Override
     public List<OrderDetalleDTO> findByClient(Long userId) {
-        log.info("Buscando ordenes para el cliente con ID: "+userId);
-        List<Order> ordenes = orderRepository.findByUserId(userId);
-        List<OrderDetalleDTO> ordenesDto = new ArrayList<>();
-
-        for (Order orden : ordenes) {
-            OrderDetalleDTO dto = new OrderDetalleDTO();
-            dto.setId(orden.getId());
-            dto.setUserId(orden.getUserId());
-            dto.setFecha(orden.getFecha());
-            dto.setEstado(orden.getEstado());
-            dto.setSubtotal(orden.getSubtotal());
-            dto.setDescuento(orden.getDescuento());
-            dto.setTotal(orden.getTotal());
-
-            List<OrderItemDTO> itemsDto = new ArrayList<>();
-            for (OrderItem item : orden.getItems()) {
-                OrderItemDTO itemDto = new OrderItemDTO();
-                itemDto.setId(item.getId());
-                itemDto.setProductId(item.getProductId());
-                itemDto.setCantidad(item.getCantidad());
-                itemDto.setPrecioUnitario(item.getPrecioUnitario());
-
-                itemsDto.add(itemDto);
-            }
-
-            dto.setItems(itemsDto);
-            ordenesDto.add(dto);
-        }
-        log.info("Se encontraron +"+ordenesDto.size()+" órdenes con el estado: {}"+ userId);
-        return ordenesDto;
+        log.info("Buscando ordenes para el cliente con ID: {}", userId);
+        return orderRepository.findByUserId(userId).stream().map(this::toDTO).toList();
     }
 
     @Transactional(readOnly = true)
     @Override
     public List<OrderDetalleDTO> findByEstado(String estado) {
-        log.info("Buscando órdenes con estado: "+estado);
-        List<Order> ordenes = orderRepository.findByEstado(estado);
-        List<OrderDetalleDTO> ordenesDto = new ArrayList<>();
-
-        for (Order orden : ordenes) {
-            OrderDetalleDTO dto = new OrderDetalleDTO();
-            dto.setId(orden.getId());
-            dto.setUserId(orden.getUserId());
-            dto.setFecha(orden.getFecha());
-            dto.setEstado(orden.getEstado());
-            dto.setSubtotal(orden.getSubtotal());
-            dto.setDescuento(orden.getDescuento());
-            dto.setTotal(orden.getTotal());
-
-            List<OrderItemDTO> itemsDto = new ArrayList<>();
-            for (OrderItem item : orden.getItems()) {
-                OrderItemDTO itemDto = new OrderItemDTO();
-                itemDto.setId(item.getId());
-                itemDto.setProductId(item.getProductId());
-                itemDto.setCantidad(item.getCantidad());
-                itemDto.setPrecioUnitario(item.getPrecioUnitario());
-
-                itemsDto.add(itemDto);
-            }
-            dto.setItems(itemsDto);
-            ordenesDto.add(dto);
-        }
-        log.info("Se encontraron +"+ordenesDto.size()+" órdenes con el estado: {}"+ estado);
-        return ordenesDto;
+        log.info("Buscando ordenes con estado: {}", estado);
+        return orderRepository.findByEstado(estado.toUpperCase()).stream().map(this::toDTO).toList();
     }
 
     @Transactional(readOnly = true)
     @Override
-    public OrderDetalleDTO findById(Long id){
-        log.info("Buscando orden con ID " +id);
-        Order orden = orderRepository.findById(id)
-                .orElseThrow(() -> {
-                    log.error("Error en la búsqueda: La orden con ID "+id+"+ no existe");
-                    return new OrderException("La orden con id " + id + " no existe");
-                });
+    public OrderDetalleDTO findById(Long id) {
+        return toDTO(buscar(id));
+    }
 
-        log.info("Orden {} encontrada exitosamente", id);
+    @Override
+    public void validarDueno(Long userId, String email) {
+        UserDTO usuario;
+        try {
+            usuario = userClient.getUserById(userId);
+        } catch (FeignException e) {
+            throw new RecursoNoEncontradoException("El user con id " + userId + " no existe");
+        }
+        if (usuario.getEmail() == null || !usuario.getEmail().equalsIgnoreCase(email)) {
+            throw new AccesoDenegadoException("No tienes permiso para acceder a las ordenes de otro usuario");
+        }
+    }
+
+    @Transactional
+    @Override
+    public OrderDetalleDTO save(OrderSaveDTO orderSaveDTO) {
+        log.info("Creando orden para el user {}", orderSaveDTO.getUserId());
+
+        try {
+            userClient.getUserById(orderSaveDTO.getUserId());
+        } catch (FeignException e) {
+            throw new RecursoNoEncontradoException("El user con id " + orderSaveDTO.getUserId() + " no existe");
+        }
+
+        Order newOrder = new Order();
+        newOrder.setUserId(orderSaveDTO.getUserId());
+        newOrder.setFecha(LocalDateTime.now());
+        newOrder.setEstado("PENDIENTE_PAGO");
+
+        long subtotal = 0;
+        List<OrderItem> items = new ArrayList<>();
+        for (OrderSaveItemDTO saveItem : orderSaveDTO.getItems()) {
+            ProductDTO producto = buscarProducto(saveItem.getProductId());
+            long precio = producto.getPrecioDescuento() != null ? producto.getPrecioDescuento() : producto.getPrecio();
+
+            OrderItem item = new OrderItem();
+            item.setProductId(saveItem.getProductId());
+            item.setCantidad(saveItem.getCantidad());
+            item.setPrecioUnitario(precio);
+            item.setOrder(newOrder);
+            items.add(item);
+            subtotal += precio * saveItem.getCantidad();
+        }
+
+        List<OrderItem> reservados = new ArrayList<>();
+        for (OrderItem item : items) {
+            try {
+                inventoryClient.reservarStock(item.getProductId(), cantidad(item.getCantidad()));
+                reservados.add(item);
+            } catch (FeignException e) {
+                liberar(reservados);
+                throw new OrderException("No hay stock suficiente para el producto " + item.getProductId());
+            }
+        }
+
+        long descuento = 0;
+        String codigo = orderSaveDTO.getCodigoPromocion();
+        if (codigo != null && !codigo.isBlank()) {
+            try {
+                PromotionSaveDTO promotionSaveDTO = new PromotionSaveDTO(codigo.trim().toUpperCase(), orderSaveDTO.getItems());
+                PromotionDTO promocion = promotionClient.aplicarPromocion(promotionSaveDTO.getCodigo(), promotionSaveDTO, (double) subtotal);
+                descuento = calcularDescuento(promocion, subtotal);
+            } catch (FeignException e) {
+                liberar(reservados);
+                throw new OrderException(mensajeCupon(e));
+            }
+        }
+
+        newOrder.setItems(items);
+        newOrder.setSubtotal(subtotal);
+        newOrder.setDescuento(descuento);
+        newOrder.setTotal(subtotal - descuento);
+
+        Order guardada = orderRepository.save(newOrder);
+        log.info("Orden {} guardada con total {}", guardada.getId(), guardada.getTotal());
+        return toDTO(guardada);
+    }
+
+    @Transactional
+    @Override
+    public OrderDetalleDTO updateEstado(Long id, OrderUpdateEstadoDTO orderUpdateEstadoDTO) {
+        Order orden = buscar(id);
+        String nuevoEstado = orderUpdateEstadoDTO.getEstado().toUpperCase();
+        if (!ESTADOS.contains(nuevoEstado)) {
+            throw new OrderException("Estado no valido. Use PENDIENTE_PAGO, PAGADA o CANCELADA");
+        }
+        if ("CANCELADA".equals(orden.getEstado())) {
+            throw new OrderException("Una orden cancelada no puede cambiar de estado.");
+        }
+        if ("CANCELADA".equals(nuevoEstado)) {
+            liberar(orden.getItems());
+        }
+        orden.setEstado(nuevoEstado);
+        log.info("Orden {} actualizada a {}", id, nuevoEstado);
+        return toDTO(orderRepository.save(orden));
+    }
+
+    @Transactional
+    @Override
+    public void cancelarOrden(Long id) {
+        Order orden = buscar(id);
+        if ("CANCELADA".equals(orden.getEstado())) {
+            throw new OrderException("La orden ya se encuentra cancelada.");
+        }
+        if (!"PENDIENTE_PAGO".equals(orden.getEstado())) {
+            throw new OrderException("Solo se puede cancelar una orden pendiente de pago.");
+        }
+        orden.setEstado("CANCELADA");
+        liberar(orden.getItems());
+        orderRepository.save(orden);
+        log.info("Orden {} cancelada", id);
+    }
+
+    private long calcularDescuento(PromotionDTO promocion, long subtotal) {
+        double descuento = "PORCENTAJE".equalsIgnoreCase(promocion.getTipo())
+                ? subtotal * promocion.getValor() / 100
+                : promocion.getValor();
+        if (promocion.getTope() != null && descuento > promocion.getTope()) {
+            descuento = promocion.getTope();
+        }
+        return Math.min(Math.round(descuento), subtotal);
+    }
+
+    private String mensajeCupon(FeignException e) {
+        Matcher m = MENSAJE_ERROR.matcher(e.contentUTF8());
+        return m.find() ? m.group(1) : "El cupon ingresado no es valido o esta vencido";
+    }
+
+    private ProductDTO buscarProducto(Long productId) {
+        ProductDTO producto;
+        try {
+            producto = productClient.getProductById(productId);
+        } catch (FeignException e) {
+            throw new RecursoNoEncontradoException("El producto con id " + productId + " no existe o está inactivo");
+        }
+        if (producto == null || !"Activo".equals(producto.getEstado())) {
+            throw new OrderException("El producto con id " + productId + " no existe o está inactivo");
+        }
+        return producto;
+    }
+
+    private void liberar(List<OrderItem> items) {
+        for (OrderItem item : items) {
+            try {
+                inventoryClient.liberarStock(item.getProductId(), cantidad(item.getCantidad()));
+            } catch (FeignException e) {
+                log.error("No se pudo liberar stock del producto {}", item.getProductId());
+            }
+        }
+    }
+
+    private InventoryCantidadDTO cantidad(Long valor) {
+        InventoryCantidadDTO dto = new InventoryCantidadDTO();
+        dto.setCantidad(valor);
+        return dto;
+    }
+
+    private Order buscar(Long id) {
+        return orderRepository.findById(id)
+                .orElseThrow(() -> new RecursoNoEncontradoException("La orden con id " + id + " no existe"));
+    }
+
+    private OrderDetalleDTO toDTO(Order orden) {
         OrderDetalleDTO dto = new OrderDetalleDTO();
         dto.setId(orden.getId());
         dto.setUserId(orden.getUserId());
@@ -123,180 +233,14 @@ public class OrderServiceImpl implements OrderService {
         dto.setSubtotal(orden.getSubtotal());
         dto.setDescuento(orden.getDescuento());
         dto.setTotal(orden.getTotal());
-
-        List<OrderItemDTO> itemsDto = new ArrayList<>();
-        for (OrderItem item : orden.getItems()) {
-            OrderItemDTO itemDto = new OrderItemDTO();
-            itemDto.setId(item.getId());
-            itemDto.setProductId(item.getProductId());
-            itemDto.setCantidad(item.getCantidad());
-            itemDto.setPrecioUnitario(item.getPrecioUnitario());
-
-            itemsDto.add(itemDto);
-        }
-        dto.setItems(itemsDto);
-        return dto;
-    }
-
-
-    @Transactional
-    @Override
-    public OrderDetalleDTO save(OrderSaveDTO orderSaveDTO) {
-        log.info("Creando orden con id " + orderSaveDTO.getUserId());
-
-        try {
-            userClient.getUserById(orderSaveDTO.getUserId());
-        } catch (FeignException e) {
-            log.error("Error al consultar el msvc-user para el user con ID " + orderSaveDTO.getUserId());
-            throw new OrderException("El user con id " + orderSaveDTO.getUserId() + " no existe");
-        }
-
-        Order newOrder = new Order();
-        newOrder.setUserId(orderSaveDTO.getUserId());
-        newOrder.setFecha(LocalDateTime.now());
-        newOrder.setEstado("PENDIENTE_PAGO");
-
-        Double subTotal = 0.0;
-        List<OrderItem> listaItems = new ArrayList<>();
-
-        for (OrderSaveItemDTO saveItemDTO : orderSaveDTO.getItems()) {
-            ProductDTO productDTO = productClient.getProductById(saveItemDTO.getProductId());
-
-            if (productDTO == null || "Inactivo".equals(productDTO.getEstado())) {
-                throw new OrderException("El producto con id " + saveItemDTO.getProductId() + " no existe o está inactivo");
-            }
-
-            OrderItem newItem = new OrderItem();
-            newItem.setProductId(saveItemDTO.getProductId());
-            newItem.setCantidad(saveItemDTO.getCantidad());
-            newItem.setPrecioUnitario(productDTO.getPrecio());
-            newItem.setOrder(newOrder);
-            listaItems.add(newItem);
-
-            subTotal += (productDTO.getPrecio() * saveItemDTO.getCantidad());
-
-            try {
-                InventoryCantidadDTO cantidadDTO = new InventoryCantidadDTO();
-                cantidadDTO.setCantidad(saveItemDTO.getCantidad());
-                inventoryClient.reservarStock(saveItemDTO.getProductId(), cantidadDTO);
-            } catch (FeignException e) {
-                log.error("Error al reservar stock en msvc-inventory para el producto " + saveItemDTO.getProductId());
-                throw new OrderException("No hay stock suficiente para el producto " + saveItemDTO.getProductId());
-            }
-        }
-
-        newOrder.setItems(listaItems);
-        newOrder.setSubtotal(subTotal.longValue());
-
-        Double descuento = 0.0;
-        if (orderSaveDTO.getCodigoPromocion() != null && !orderSaveDTO.getCodigoPromocion().isBlank()) {
-            try {
-                PromotionSaveDTO promotionSaveDTO = new PromotionSaveDTO(orderSaveDTO.getCodigoPromocion(), orderSaveDTO.getItems());
-                PromotionDTO promotionDTO = promotionClient.aplicarPromocion(orderSaveDTO.getCodigoPromocion(), promotionSaveDTO, subTotal);
-                descuento = promotionDTO.getValor();
-            } catch (FeignException e) {
-                log.error("Error al validar el cupón en msvc-promotion: " + orderSaveDTO.getCodigoPromocion());
-                throw new OrderException("El cupón ingresado no es válido o está expirado");
-            }
-        }
-
-        newOrder.setDescuento(descuento.longValue());
-
-        Double totalFinal = subTotal - descuento;
-        if (totalFinal < 0.0) {
-            totalFinal = 0.0;
-        }
-
-        newOrder.setTotal(totalFinal.longValue());
-
-        Order orderSave = orderRepository.save(newOrder);
-        log.info("Orden " + orderSave.getId() + " Guardada con éxito");
-
-        OrderDetalleDTO dto = new OrderDetalleDTO();
-        dto.setId(orderSave.getId());
-        dto.setUserId(orderSave.getUserId());
-        dto.setFecha(orderSave.getFecha());
-        dto.setEstado(orderSave.getEstado());
-        dto.setSubtotal(orderSave.getSubtotal());
-        dto.setDescuento(orderSave.getDescuento());
-        dto.setTotal(orderSave.getTotal());
-
-        List<OrderItemDTO> itemsDto = orderSave.getItems().stream().map(item -> {
+        dto.setItems(orden.getItems().stream().map(item -> {
             OrderItemDTO itemDto = new OrderItemDTO();
             itemDto.setId(item.getId());
             itemDto.setProductId(item.getProductId());
             itemDto.setCantidad(item.getCantidad());
             itemDto.setPrecioUnitario(item.getPrecioUnitario());
             return itemDto;
-        }).toList();
-
-        dto.setItems(itemsDto);
+        }).toList());
         return dto;
-    }
-
-    @Transactional
-    @Override
-    public OrderDetalleDTO updateEstado(Long id, OrderUpdateEstadoDTO orderUpdateEstadoDTO) {
-        log.info("Actualizando estado de la orden con ID " + id);
-        Order orden = orderRepository.findById(id)
-                .orElseThrow(() -> {
-                    log.error("Error al actualizar: La orden con ID " + id + " no existe");
-                    return new OrderException("La orden con id " + id + " no existe");
-                });
-
-        orden.setEstado(orderUpdateEstadoDTO.getEstado());
-        Order ordenActualizada = orderRepository.save(orden);
-
-        log.info("Estado de la orden "+ id+ " actualizado exitosamente a: " +orderUpdateEstadoDTO.getEstado());
-
-        OrderDetalleDTO dto = new OrderDetalleDTO();
-        dto.setId(ordenActualizada.getId());
-        dto.setUserId(ordenActualizada.getUserId());
-        dto.setFecha(ordenActualizada.getFecha());
-        dto.setEstado(ordenActualizada.getEstado());
-        dto.setSubtotal(ordenActualizada.getSubtotal());
-        dto.setDescuento(ordenActualizada.getDescuento());
-        dto.setTotal(ordenActualizada.getTotal());
-
-        List<OrderItemDTO> itemsDto = new ArrayList<>();
-        for (OrderItem item : ordenActualizada.getItems()) {
-            OrderItemDTO itemDto = new OrderItemDTO();
-            itemDto.setId(item.getId());
-            itemDto.setProductId(item.getProductId());
-            itemDto.setCantidad(item.getCantidad());
-            itemDto.setPrecioUnitario(item.getPrecioUnitario());
-
-            itemsDto.add(itemDto);
-        }
-        dto.setItems(itemsDto);
-        return dto;
-    }
-
-    @Transactional
-    @Override
-    public void cancelarOrden(Long id) {
-        log.info("Iniciando proceso de cancelación para la orden "+ id);
-        Order orden = orderRepository.findById(id)
-                .orElseThrow(() -> new OrderException("Orden con ID " + id + " no encontrada"));
-
-        if ("CANCELADA".equals(orden.getEstado())) {
-            throw new OrderException("La orden ya se encuentra cancelada.");
-        }
-
-        orden.setEstado("CANCELADA");
-
-        for(OrderItem item : orden.getItems()) {
-            try {
-                InventoryCantidadDTO cantidadDTO = new InventoryCantidadDTO();
-                cantidadDTO.setCantidad(item.getCantidad());
-                inventoryClient.liberarStock(item.getProductId(), cantidadDTO);
-                log.info("Stock liberado para el producto " + item.getProductId());
-            } catch (FeignException e) {
-                log.error("Error al liberar stock para el producto " + item.getProductId() + " en la orden " + id);
-            }
-        }
-
-        orderRepository.save(orden);
-        log.info("Orden "+id+" cancelada exitosamente");
     }
 }

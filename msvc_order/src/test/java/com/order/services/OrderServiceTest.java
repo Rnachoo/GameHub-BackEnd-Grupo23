@@ -249,7 +249,7 @@ public class OrderServiceTest {
     public void shouldUpdateEstado() {
         Long orderId = 100L;
         OrderUpdateEstadoDTO updateDTO = new OrderUpdateEstadoDTO();
-        updateDTO.setEstado("COMPLETADA");
+        updateDTO.setEstado("PAGADA");
 
         when(this.orderRepository.findById(orderId)).thenReturn(Optional.of(this.ordenPrueba));
         when(this.orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
@@ -257,7 +257,7 @@ public class OrderServiceTest {
         OrderDetalleDTO result = this.orderService.updateEstado(orderId, updateDTO);
 
         assertThat(result).isNotNull();
-        assertThat(result.getEstado()).isEqualTo("COMPLETADA");
+        assertThat(result.getEstado()).isEqualTo("PAGADA");
         verify(orderRepository, times(1)).save(any(Order.class));
     }
 

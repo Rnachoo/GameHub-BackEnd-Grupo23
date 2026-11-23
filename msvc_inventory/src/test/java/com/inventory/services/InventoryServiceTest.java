@@ -245,7 +245,7 @@ public class InventoryServiceTest {
 
         assertThatThrownBy(() -> this.inventoryService.reservarStock(productId, cantidadDTO))
                 .isInstanceOf(InventoryException.class)
-                .hasMessageContaining("Stock insufciente");
+                .hasMessageContaining("Stock insuficiente");
 
         verify(inventoryRepository, never()).save(any(Inventory.class));
     }

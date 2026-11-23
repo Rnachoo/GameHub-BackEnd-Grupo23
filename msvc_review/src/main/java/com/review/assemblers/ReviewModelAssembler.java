@@ -20,7 +20,7 @@ public class ReviewModelAssembler implements RepresentationModelAssembler<Resena
                 linkTo(methodOn(ReviewController.class).findByProductoId(resena.getProductoId())).withRel("resenas-producto"),
                 linkTo(methodOn(ReviewController.class).findByUsuarioId(resena.getUsuarioId())).withRel("resenas-usuario"),
                 linkTo(methodOn(ReviewController.class).moderar(resena.getId())).withRel("moderar"),
-                linkTo(methodOn(ReviewController.class).update(resena.getId(), null)).withRel("update")
+                linkTo(methodOn(ReviewController.class).update(resena.getId(), null, null)).withRel("update")
         );
     }
 }

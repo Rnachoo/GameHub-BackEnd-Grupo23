@@ -28,6 +28,9 @@ public class Review {
     @Column(nullable = false)
     private Integer puntuacion;
 
+    @Column(name = "nombre_autor")
+    private String nombreAutor;
+
     @Column(length = 500)
     private String comentario;
 
