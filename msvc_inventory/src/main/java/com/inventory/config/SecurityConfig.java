@@ -76,7 +76,8 @@ public class SecurityConfig {
                                 "/api/v1/inventories/producto/{productId}/reservar",
                                 "/api/v1/inventories/producto/{productId}/liberar",
                                 "/api/v1/inventories/producto/{productId}/confirmar-venta",
-                                "/api/v1/inventories/ordenes/{ordenId}/confirmacion"
+                                "/api/v1/inventories/ordenes/{ordenId}/confirmacion",
+                                "/api/v1/inventories/ordenes/{ordenId}/transiciones/{origen}/{destino}"
                         ).hasAuthority("STOCK_ORDENES")
 
                         .requestMatchers(

@@ -190,6 +190,16 @@ public class InventoryController {
         return ResponseEntity.noContent().build();
     }
 
+    @PutMapping("/ordenes/{ordenId}/transiciones/{origen}/{destino}")
+    public ResponseEntity<Void> cambiarEstadoStockOrden(
+            @PathVariable Long ordenId,
+            @PathVariable String origen,
+            @PathVariable String destino,
+            @Valid @RequestBody ConfirmacionStockDTO solicitud
+    ) {
+        inventoryService.cambiarEstadoStockOrden(ordenId, origen, destino, solicitud);
+        return ResponseEntity.noContent().build();
+    }
 
 
 }

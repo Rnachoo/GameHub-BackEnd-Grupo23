@@ -19,5 +19,5 @@ public interface InventoryService {
     InventoryDetalleDTO liberarStock(Long productId, InventoryCantidadDTO cantidadDTO);
     InventoryDetalleDTO confirmarVenta(Long productId, InventoryCantidadDTO cantidadDTO);
     void confirmarStockOrden(Long ordenId, ConfirmacionStockDTO solicitud);
-
+    void cambiarEstadoStockOrden(Long ordenId, String origen, String destino, ConfirmacionStockDTO solicitud);
 }

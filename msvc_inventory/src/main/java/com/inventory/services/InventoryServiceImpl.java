@@ -226,57 +226,99 @@ public class InventoryServiceImpl implements InventoryService {
     @Transactional
     @Override
     public void confirmarStockOrden(Long ordenId, ConfirmacionStockDTO solicitud) {
-        // Si la orden repite un producto, se comprueba el total de sus unidades.
+        cambiarEstadoStockOrden(ordenId, "PENDIENTE_PAGO", "PAGADA", solicitud);
+    }
+
+    @Transactional
+    @Override
+    public void cambiarEstadoStockOrden(
+            Long ordenId,
+            String origen,
+            String destino,
+            ConfirmacionStockDTO solicitud
+    ) {
+        boolean desdeReserva = "PENDIENTE_PAGO".equals(origen)
+                && ("PAGADA".equals(destino) || "CANCELADA".equals(destino));
+        boolean desdeVenta = "PAGADA".equals(origen)
+                && ("PENDIENTE_PAGO".equals(destino) || "CANCELADA".equals(destino));
+
+        if (!desdeReserva && !desdeVenta) {
+            throw new InventoryException(
+                    "Transición de stock inválida: " + origen + " -> " + destino
+            );
+        }
+
         Map<Long, Long> cantidades = new TreeMap<>();
         for (ConfirmacionStockDTO.Linea linea : solicitud.items()) {
             cantidades.merge(linea.productId(), linea.cantidad(), Math::addExact);
         }
 
-        // Todas las confirmaciones toman los bloqueos en el mismo orden.
+        // Tomar los bloqueos por ID evita invertir el orden entre dos compras.
         Map<Long, Inventory> inventarios = new TreeMap<>();
         for (Long productId : cantidades.keySet()) {
             inventarios.put(productId, buscarPorProducto(productId));
         }
 
-        // Un reintento con las mismas líneas espera a que termine la primera
-        // transacción y después comprueba si esa revisión ya fue aplicada.
         var anterior = operacionStockOrdenRepository.findByOrdenIdAndRevision(
                 ordenId, solicitud.revision()
         );
 
         if (anterior.isPresent()) {
             OperacionStockOrden operacion = anterior.get();
-
-            if (!"PENDIENTE_PAGO".equals(operacion.getEstadoOrigen())
-                    || !"PAGADA".equals(operacion.getEstadoDestino())) {
-                throw new InventoryException(
-                        "La revisión de esta orden ya corresponde a otra operación."
-                );
+            if (origen.equals(operacion.getEstadoOrigen())
+                    && destino.equals(operacion.getEstadoDestino())) {
+                return;
             }
-            return;
+            throw new InventoryException(
+                    "La revisión de esta orden ya corresponde a otra operación."
+            );
         }
 
-        for (var entrada : cantidades.entrySet()) {
-            Inventory inventory = inventarios.get(entrada.getKey());
-            if (inventory.getStockReservado() < entrada.getValue()) {
-                throw new InventoryException(
-                        "Stock reservado insuficiente para el producto " + entrada.getKey()
-                );
+        if (desdeReserva) {
+            for (var entrada : cantidades.entrySet()) {
+                Inventory inventario = inventarios.get(entrada.getKey());
+                if (inventario.getStockReservado() < entrada.getValue()) {
+                    throw new InventoryException(
+                            "Stock reservado insuficiente para el producto " + entrada.getKey()
+                    );
+                }
             }
         }
 
         operacionStockOrdenRepository.saveAndFlush(new OperacionStockOrden(
-                ordenId,
-                solicitud.revision(),
-                "PENDIENTE_PAGO",
-                "PAGADA"
+                ordenId, solicitud.revision(), origen, destino
         ));
 
         for (var entrada : cantidades.entrySet()) {
-            aplicarVenta(inventarios.get(entrada.getKey()), entrada.getValue());
+            Inventory inventario = inventarios.get(entrada.getKey());
+            long cantidad = entrada.getValue();
+
+            if ("PAGADA".equals(destino)) {
+                // El disponible ya bajó cuando se creó la reserva.
+                aplicarVenta(inventario, cantidad);
+            } else if ("PENDIENTE_PAGO".equals(destino)) {
+                // La venta se revierte, pero las unidades siguen asignadas a la orden.
+                inventario.setStockReservado(
+                        Math.addExact(inventario.getStockReservado(), cantidad)
+                );
+                registrarMovimiento(inventario, "REVERSA_VENTA", cantidad);
+            } else {
+                if (desdeReserva) {
+                    inventario.setStockReservado(inventario.getStockReservado() - cantidad);
+                }
+                inventario.setStockDisponible(
+                        Math.addExact(inventario.getStockDisponible(), cantidad)
+                );
+                registrarMovimiento(
+                        inventario,
+                        desdeReserva ? "LIBERACION" : "DEVOLUCION",
+                        cantidad
+                );
+            }
         }
 
-        log.info("Stock confirmado para la orden {}, revisión {}", ordenId, solicitud.revision());
+        log.info("Stock de orden {} actualizado de {} a {}, revisión {}",
+                ordenId, origen, destino, solicitud.revision());
     }
 
     private Inventory buscarPorProducto(Long productId) {
