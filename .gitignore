@@ -36,3 +36,6 @@ build/
 data/
 *.mv.db
 *.trace.db
+
+# Variables locales de Docker Compose
+/.env
