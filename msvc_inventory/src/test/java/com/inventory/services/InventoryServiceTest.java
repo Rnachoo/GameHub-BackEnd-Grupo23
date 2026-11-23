@@ -4,30 +4,37 @@ import com.inventory.clients.ProductClient;
 import com.inventory.exceptions.InventoryException;
 import com.inventory.models.Inventory;
 import com.inventory.models.MovimientoInventario;
-import com.inventory.models.dtos.*;
+import com.inventory.models.OperacionStockOrden;
+import com.inventory.models.dtos.ConfirmacionStockDTO;
+import com.inventory.models.dtos.InventoryCantidadDTO;
+import com.inventory.models.dtos.InventoryDetalleDTO;
+import com.inventory.models.dtos.InventorySaveDTO;
+import com.inventory.models.dtos.InventoryUpdateCantidadDisponibleDTO;
+import com.inventory.models.dtos.MovimientoDetalleDTO;
+import com.inventory.models.dtos.ProductDTO;
 import com.inventory.repositories.InventoryRepository;
+import com.inventory.repositories.OperacionStockOrdenRepository;
 import feign.FeignException;
-import net.datafaker.Faker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-public class InventoryServiceTest {
+class InventoryServiceTest {
 
     @Mock
     private InventoryRepository inventoryRepository;
@@ -35,215 +42,188 @@ public class InventoryServiceTest {
     @Mock
     private ProductClient productClient;
 
+    @Mock
+    private OperacionStockOrdenRepository operacionStockOrdenRepository;
+
     @InjectMocks
     private InventoryServiceImpl inventoryService;
 
     private Inventory inventarioPrueba;
-    private MovimientoInventario movimientoPrueba;
-    private ProductDTO productDTOPrueba;
 
     @BeforeEach
-    public void setUp() {
-        Faker faker = new Faker(Locale.of("es", "CL"));
+    void setUp() {
+        inventarioPrueba = new Inventory();
+        inventarioPrueba.setId(1L);
+        inventarioPrueba.setProductId(100L);
+        inventarioPrueba.setStockDisponible(50L);
+        inventarioPrueba.setStockReservado(10L);
+        inventarioPrueba.setStockMinimo(5L);
+        inventarioPrueba.setUbicacion("Pasillo 3, Estante A");
 
-        // Configuración de ProductDTO simulado de Feign
-        this.productDTOPrueba = new ProductDTO();
-        this.productDTOPrueba.setId(100L);
-        this.productDTOPrueba.setCantidad(50L);
-
-        // Configuración de MovimientoInventario
-        this.movimientoPrueba = new MovimientoInventario();
-        this.movimientoPrueba.setId(1L);
-        this.movimientoPrueba.setProductId(100L);
-        this.movimientoPrueba.setTipo("ENTRADA");
-        this.movimientoPrueba.setCantidad(50L);
-        this.movimientoPrueba.setFecha(LocalDateTime.now());
-
-        // Configuración de Inventory (Entidad)
-        this.inventarioPrueba = new Inventory();
-        this.inventarioPrueba.setId(1L);
-        this.inventarioPrueba.setProductId(100L);
-        this.inventarioPrueba.setStockDisponible(50L);
-        this.inventarioPrueba.setStockReservado(10L);
-        this.inventarioPrueba.setStockMinimo(5L);
-        this.inventarioPrueba.setUbicacion("Pasillo 3, Estante A");
-
-        // Relación bidireccional
-        this.movimientoPrueba.setInventario(this.inventarioPrueba);
-        this.inventarioPrueba.getMovimientos().add(this.movimientoPrueba);
+        MovimientoInventario entrada = new MovimientoInventario();
+        entrada.setId(1L);
+        entrada.setProductId(100L);
+        entrada.setTipo("ENTRADA");
+        entrada.setCantidad(50L);
+        entrada.setFecha(LocalDateTime.of(2026, 11, 23, 12, 0));
+        entrada.setInventario(inventarioPrueba);
+        inventarioPrueba.getMovimientos().add(entrada);
     }
 
     @Test
-    @DisplayName("Debe listar todo el inventario de un producto específico")
-    public void shouldFindAllByProduct() {
-        Long productId = 100L;
-        when(this.inventoryRepository.findByProductId(productId)).thenReturn(List.of(this.inventarioPrueba));
+    @DisplayName("Lista el inventario del producto con sus movimientos")
+    void shouldFindAllByProduct() {
+        when(inventoryRepository.findByProductId(100L))
+                .thenReturn(List.of(inventarioPrueba));
 
-        List<InventoryDetalleDTO> result = this.inventoryService.findAllByProduct(productId);
+        List<InventoryDetalleDTO> resultado = inventoryService.findAllByProduct(100L);
 
-        assertThat(result).isNotNull();
-        assertThat(result.size()).isEqualTo(1);
-        assertThat(result.get(0).getProductId()).isEqualTo(productId);
-        assertThat(result.get(0).getMovimientosDTO().size()).isEqualTo(1);
-        verify(inventoryRepository, times(1)).findByProductId(productId);
+        assertThat(resultado).hasSize(1);
+        assertThat(resultado.get(0).getProductId()).isEqualTo(100L);
+        assertThat(resultado.get(0).getMovimientosDTO()).hasSize(1);
+        verify(inventoryRepository).findByProductId(100L);
     }
 
     @Test
-    @DisplayName("Debe buscar un inventario por su ID exitosamente")
-    public void shouldFindById() {
-        Long id = 1L;
-        when(this.inventoryRepository.findById(id)).thenReturn(Optional.of(this.inventarioPrueba));
+    @DisplayName("Consulta el inventario por ID")
+    void shouldFindById() {
+        when(inventoryRepository.findById(1L)).thenReturn(Optional.of(inventarioPrueba));
 
-        InventoryDetalleDTO result = this.inventoryService.findByID(id);
+        InventoryDetalleDTO resultado = inventoryService.findByID(1L);
 
-        assertThat(result).isNotNull();
-        assertThat(result.getId()).isEqualTo(1L);
-        assertThat(result.getStockDisponible()).isEqualTo(50L);
-        verify(inventoryRepository, times(1)).findById(id);
+        assertThat(resultado.getId()).isEqualTo(1L);
+        assertThat(resultado.getStockDisponible()).isEqualTo(50L);
+        verify(inventoryRepository).findById(1L);
     }
 
     @Test
-    @DisplayName("Debe guardar un inventario validando con ProductClient")
-    public void shouldSaveInventory() {
-        InventorySaveDTO saveDTO = new InventorySaveDTO();
-        saveDTO.setProductId(100L);
-        saveDTO.setStockDisponible(50L);
-        saveDTO.setStockReservado(0L);
-        saveDTO.setStockMinimo(5L);
-        saveDTO.setUbicacion("Almacén Central");
+    @DisplayName("Crea el inventario tras validar el producto")
+    void shouldSaveInventory() {
+        InventorySaveDTO solicitud = new InventorySaveDTO();
+        solicitud.setProductId(100L);
+        solicitud.setStockDisponible(50L);
+        solicitud.setStockReservado(0L);
+        solicitud.setStockMinimo(5L);
+        solicitud.setUbicacion("Almacén Central");
 
-        MovimientoDetalleDTO movDTO = new MovimientoDetalleDTO();
-        movDTO.setProductId(100L);
-        movDTO.setTipo("ENTRADA");
-        movDTO.setCantidad(50L);
-        saveDTO.setMovimientosDTO(List.of(movDTO));
+        MovimientoDetalleDTO entrada = new MovimientoDetalleDTO();
+        entrada.setProductId(100L);
+        entrada.setTipo("ENTRADA");
+        entrada.setCantidad(50L);
+        solicitud.setMovimientosDTO(List.of(entrada));
 
-        when(this.productClient.getProductById(saveDTO.getProductId())).thenReturn(this.productDTOPrueba);
-        when(this.inventoryRepository.save(any(Inventory.class))).thenAnswer(i -> {
-            Inventory invGuardado = i.getArgument(0);
-            invGuardado.setId(2L);
-            return invGuardado;
+        ProductDTO producto = new ProductDTO();
+        producto.setId(100L);
+        when(productClient.getProductById(100L)).thenReturn(producto);
+        when(inventoryRepository.save(any(Inventory.class))).thenAnswer(invocacion -> {
+            Inventory inventario = invocacion.getArgument(0);
+            inventario.setId(2L);
+            return inventario;
         });
 
-        InventoryDetalleDTO result = this.inventoryService.save(saveDTO);
+        InventoryDetalleDTO resultado = inventoryService.save(solicitud);
 
-        assertThat(result).isNotNull();
-        assertThat(result.getId()).isEqualTo(2L);
-        assertThat(result.getMovimientosDTO().size()).isEqualTo(1);
-        verify(productClient, times(1)).getProductById(saveDTO.getProductId());
-        verify(inventoryRepository, times(1)).save(any(Inventory.class));
+        assertThat(resultado.getId()).isEqualTo(2L);
+        assertThat(resultado.getMovimientosDTO()).hasSize(1);
+        verify(productClient).getProductById(100L);
+        verify(inventoryRepository).save(any(Inventory.class));
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción al guardar si ProductClient falla (FeignException)")
-    public void shouldThrowExceptionWhenProductClientFails() {
-        InventorySaveDTO saveDTO = new InventorySaveDTO();
-        saveDTO.setProductId(999L);
+    @DisplayName("Rechaza la creación si falla la consulta del producto")
+    void shouldThrowExceptionWhenProductClientFails() {
+        InventorySaveDTO solicitud = new InventorySaveDTO();
+        solicitud.setProductId(999L);
 
-        // Simulamos la caída del microservicio de productos
-        when(this.productClient.getProductById(saveDTO.getProductId())).thenThrow(mock(FeignException.class));
+        when(productClient.getProductById(999L)).thenThrow(mock(FeignException.class));
 
-        assertThatThrownBy(() -> this.inventoryService.save(saveDTO))
+        assertThatThrownBy(() -> inventoryService.save(solicitud))
                 .isInstanceOf(InventoryException.class)
                 .hasMessageContaining("no existe o el servicio no está disponible");
 
-        verify(productClient, times(1)).getProductById(saveDTO.getProductId());
         verify(inventoryRepository, never()).save(any(Inventory.class));
     }
 
     @Test
-    @DisplayName("Debe actualizar el stock disponible exitosamente")
-    public void shouldUpdateCantidadDisponible() {
-        Long id = 1L;
-        InventoryUpdateCantidadDisponibleDTO updateDTO = new InventoryUpdateCantidadDisponibleDTO();
-        updateDTO.setStockDisponible(80L); // Aumentando a 80
+    @DisplayName("Ajusta el stock disponible y registra la diferencia")
+    void shouldUpdateCantidadDisponible() {
+        InventoryUpdateCantidadDisponibleDTO ajuste = new InventoryUpdateCantidadDisponibleDTO();
+        ajuste.setStockDisponible(80L);
 
-        when(this.inventoryRepository.findById(id)).thenReturn(Optional.of(this.inventarioPrueba));
-        when(this.inventoryRepository.save(any(Inventory.class))).thenAnswer(i -> i.getArgument(0));
+        when(inventoryRepository.findInventarioById(1L))
+                .thenReturn(Optional.of(inventarioPrueba));
+        when(inventoryRepository.save(inventarioPrueba)).thenReturn(inventarioPrueba);
 
-        InventoryDetalleDTO result = this.inventoryService.updateCantidadDisponible(id, updateDTO);
+        InventoryDetalleDTO resultado = inventoryService.updateCantidadDisponible(1L, ajuste);
 
-        assertThat(result).isNotNull();
-        assertThat(result.getStockDisponible()).isEqualTo(80L);
-        verify(inventoryRepository, times(1)).findById(id);
-        verify(inventoryRepository, times(1)).save(any(Inventory.class));
+        assertThat(resultado.getStockDisponible()).isEqualTo(80L);
+        assertThat(resultado.getStockReservado()).isEqualTo(10L);
+        assertThat(resultado.getMovimientosDTO()).hasSize(2);
+        assertThat(resultado.getMovimientosDTO().get(1).getTipo()).isEqualTo("AJUSTE_ENTRADA");
+        assertThat(resultado.getMovimientosDTO().get(1).getCantidad()).isEqualTo(30L);
+        verify(inventoryRepository).save(inventarioPrueba);
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción al intentar actualizar stock a un valor negativo")
-    public void shouldThrowExceptionWhenUpdateNegativeStock() {
-        Long id = 1L;
-        InventoryUpdateCantidadDisponibleDTO updateDTO = new InventoryUpdateCantidadDisponibleDTO();
-        updateDTO.setStockDisponible(-10L);
+    @DisplayName("Rechaza un ajuste de stock negativo")
+    void shouldThrowExceptionWhenUpdateNegativeStock() {
+        InventoryUpdateCantidadDisponibleDTO ajuste = new InventoryUpdateCantidadDisponibleDTO();
+        ajuste.setStockDisponible(-10L);
 
-        when(this.inventoryRepository.findById(id)).thenReturn(Optional.of(this.inventarioPrueba));
+        when(inventoryRepository.findInventarioById(1L))
+                .thenReturn(Optional.of(inventarioPrueba));
 
-        assertThatThrownBy(() -> this.inventoryService.updateCantidadDisponible(id, updateDTO))
+        assertThatThrownBy(() -> inventoryService.updateCantidadDisponible(1L, ajuste))
                 .isInstanceOf(InventoryException.class)
                 .hasMessage("El stock disponible no puede quedar en negativo.");
 
-        verify(inventoryRepository, times(1)).findById(id);
         verify(inventoryRepository, never()).save(any(Inventory.class));
     }
 
     @Test
-    @DisplayName("Debe eliminar un inventario si no tiene stock reservado")
-    public void shouldDeleteById() {
-        Long id = 1L;
-        this.inventarioPrueba.setStockReservado(0L); // Condición para permitir borrado
-        when(this.inventoryRepository.findById(id)).thenReturn(Optional.of(this.inventarioPrueba));
+    @DisplayName("Elimina el inventario si no tiene reservas")
+    void shouldDeleteById() {
+        inventarioPrueba.setStockReservado(0L);
+        when(inventoryRepository.findInventarioById(1L))
+                .thenReturn(Optional.of(inventarioPrueba));
 
-        this.inventoryService.deleteById(id);
+        inventoryService.deleteById(1L);
 
-        verify(inventoryRepository, times(1)).findById(id);
-        verify(inventoryRepository, times(1)).delete(this.inventarioPrueba);
+        verify(inventoryRepository).delete(inventarioPrueba);
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción al intentar eliminar inventario con stock reservado")
-    public void shouldThrowExceptionWhenDeleteWithReservedStock() {
-        Long id = 1L;
-        this.inventarioPrueba.setStockReservado(5L); // Condición que bloquea el borrado
-        when(this.inventoryRepository.findById(id)).thenReturn(Optional.of(this.inventarioPrueba));
+    @DisplayName("Impide eliminar un inventario con unidades reservadas")
+    void shouldThrowExceptionWhenDeleteWithReservedStock() {
+        when(inventoryRepository.findInventarioById(1L))
+                .thenReturn(Optional.of(inventarioPrueba));
 
-        assertThatThrownBy(() -> this.inventoryService.deleteById(id))
+        assertThatThrownBy(() -> inventoryService.deleteById(1L))
                 .isInstanceOf(InventoryException.class)
                 .hasMessage("No se puede eliminar el inventario dado que hay productos reservados");
 
-        verify(inventoryRepository, times(1)).findById(id);
         verify(inventoryRepository, never()).delete(any(Inventory.class));
     }
 
     @Test
-    @DisplayName("Debe reservar stock restando del disponible y sumando al reservado")
-    public void shouldReservarStock() {
-        Long productId = 100L;
-        InventoryCantidadDTO cantidadDTO = new InventoryCantidadDTO();
-        cantidadDTO.setCantidad(10L); // Queremos reservar 10 unidades (Había 50 Disp. y 10 Res.)
+    @DisplayName("Reservar mueve unidades de disponible a reservado")
+    void shouldReservarStock() {
+        prepararEscrituraPorProducto();
 
-        when(this.inventoryRepository.findByProductId(productId)).thenReturn(List.of(this.inventarioPrueba));
-        when(this.inventoryRepository.save(any(Inventory.class))).thenAnswer(i -> i.getArgument(0));
-        // El método reservarStock llama internamente a findByID al final, debemos mockearlo
-        when(this.inventoryRepository.findById(this.inventarioPrueba.getId())).thenReturn(Optional.of(this.inventarioPrueba));
+        InventoryDetalleDTO resultado = inventoryService.reservarStock(100L, cantidad(10L));
 
-        InventoryDetalleDTO result = this.inventoryService.reservarStock(productId, cantidadDTO);
-
-        assertThat(result).isNotNull();
-        assertThat(this.inventarioPrueba.getStockDisponible()).isEqualTo(40L); // 50 - 10
-        assertThat(this.inventarioPrueba.getStockReservado()).isEqualTo(20L); // 10 + 10
-        verify(inventoryRepository, times(1)).save(any(Inventory.class));
+        assertThat(resultado.getStockDisponible()).isEqualTo(40L);
+        assertThat(resultado.getStockReservado()).isEqualTo(20L);
+        verify(inventoryRepository).save(inventarioPrueba);
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción si el stock disponible es insuficiente para reservar")
-    public void shouldThrowExceptionWhenReservarStockInsufficient() {
-        Long productId = 100L;
-        InventoryCantidadDTO cantidadDTO = new InventoryCantidadDTO();
-        cantidadDTO.setCantidad(100L); // Intento reservar 100, pero solo hay 50
+    @DisplayName("Rechaza una reserva superior al stock disponible")
+    void shouldThrowExceptionWhenReservarStockInsufficient() {
+        when(inventoryRepository.findInventarioByProductId(100L))
+                .thenReturn(Optional.of(inventarioPrueba));
 
-        when(this.inventoryRepository.findByProductId(productId)).thenReturn(List.of(this.inventarioPrueba));
-
-        assertThatThrownBy(() -> this.inventoryService.reservarStock(productId, cantidadDTO))
+        assertThatThrownBy(() -> inventoryService.reservarStock(100L, cantidad(100L)))
                 .isInstanceOf(InventoryException.class)
                 .hasMessageContaining("Stock insuficiente");
 
@@ -251,39 +231,120 @@ public class InventoryServiceTest {
     }
 
     @Test
-    @DisplayName("Debe confirmar venta restando el stock reservado")
-    public void shouldConfirmarVenta() {
-        Long productId = 100L;
-        InventoryCantidadDTO cantidadDTO = new InventoryCantidadDTO();
-        cantidadDTO.setCantidad(5L); // Había 10 en reserva, confirmamos venta de 5
+    @DisplayName("Confirmar una venta descuenta solo del reservado")
+    void shouldConfirmarVenta() {
+        prepararEscrituraPorProducto();
 
-        when(this.inventoryRepository.findByProductId(productId)).thenReturn(List.of(this.inventarioPrueba));
-        when(this.inventoryRepository.save(any(Inventory.class))).thenAnswer(i -> i.getArgument(0));
-        when(this.inventoryRepository.findById(this.inventarioPrueba.getId())).thenReturn(Optional.of(this.inventarioPrueba));
+        InventoryDetalleDTO resultado = inventoryService.confirmarVenta(100L, cantidad(5L));
 
-        InventoryDetalleDTO result = this.inventoryService.confirmarVenta(productId, cantidadDTO);
-
-        assertThat(result).isNotNull();
-        assertThat(this.inventarioPrueba.getStockReservado()).isEqualTo(5L); // 10 - 5
-        verify(inventoryRepository, times(1)).save(any(Inventory.class));
+        assertThat(resultado.getStockDisponible()).isEqualTo(50L);
+        assertThat(resultado.getStockReservado()).isEqualTo(5L);
+        assertThat(resultado.getMovimientosDTO().get(1).getTipo()).isEqualTo("VENTA");
+        verify(inventoryRepository).save(inventarioPrueba);
     }
 
     @Test
-    @DisplayName("Debe liberar stock restando del reservado y devolviéndolo al disponible")
-    public void shouldLiberarStock() {
-        Long productId = 100L;
-        InventoryCantidadDTO cantidadDTO = new InventoryCantidadDTO();
-        cantidadDTO.setCantidad(5L); // Cancelamos reserva de 5
+    @DisplayName("Liberar una reserva devuelve unidades al disponible")
+    void shouldLiberarStock() {
+        prepararEscrituraPorProducto();
 
-        when(this.inventoryRepository.findByProductId(productId)).thenReturn(List.of(this.inventarioPrueba));
-        when(this.inventoryRepository.save(any(Inventory.class))).thenAnswer(i -> i.getArgument(0));
-        when(this.inventoryRepository.findById(this.inventarioPrueba.getId())).thenReturn(Optional.of(this.inventarioPrueba));
+        InventoryDetalleDTO resultado = inventoryService.liberarStock(100L, cantidad(5L));
 
-        InventoryDetalleDTO result = this.inventoryService.liberarStock(productId, cantidadDTO);
+        assertThat(resultado.getStockDisponible()).isEqualTo(55L);
+        assertThat(resultado.getStockReservado()).isEqualTo(5L);
+        verify(inventoryRepository).save(inventarioPrueba);
+    }
 
-        assertThat(result).isNotNull();
-        assertThat(this.inventarioPrueba.getStockReservado()).isEqualTo(5L); // 10 - 5
-        assertThat(this.inventarioPrueba.getStockDisponible()).isEqualTo(55L); // 50 + 5
-        verify(inventoryRepository, times(1)).save(any(Inventory.class));
+    @Test
+    @DisplayName("Repetir la aprobación conserva las unidades reservadas para otra orden")
+    void confirmarDosVecesConservaLaOtraReserva() {
+        // Cuatro reservadas: dos de esta orden y dos de otra.
+        inventarioPrueba.setStockDisponible(6L);
+        inventarioPrueba.setStockReservado(4L);
+
+        ConfirmacionStockDTO solicitud = new ConfirmacionStockDTO(
+                1L,
+                List.of(new ConfirmacionStockDTO.Linea(100L, 2L))
+        );
+
+        OperacionStockOrden registrada = new OperacionStockOrden(
+                200L, 1L, "PENDIENTE_PAGO", "PAGADA"
+        );
+
+        when(inventoryRepository.findInventarioByProductId(100L))
+                .thenReturn(Optional.of(inventarioPrueba));
+        when(operacionStockOrdenRepository.findByOrdenIdAndRevision(200L, 1L))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(registrada));
+
+        inventoryService.confirmarStockOrden(200L, solicitud);
+        inventoryService.confirmarStockOrden(200L, solicitud);
+
+        assertThat(inventarioPrueba.getStockDisponible()).isEqualTo(6L);
+        assertThat(inventarioPrueba.getStockReservado()).isEqualTo(2L);
+
+        // Una entrada inicial y una sola venta.
+        assertThat(inventarioPrueba.getMovimientos()).hasSize(2);
+        MovimientoInventario venta = inventarioPrueba.getMovimientos().get(1);
+        assertThat(venta.getTipo()).isEqualTo("VENTA");
+        assertThat(venta.getCantidad()).isEqualTo(2L);
+
+        ArgumentCaptor<OperacionStockOrden> captor =
+                ArgumentCaptor.forClass(OperacionStockOrden.class);
+        verify(operacionStockOrdenRepository).saveAndFlush(captor.capture());
+
+        OperacionStockOrden guardada = captor.getValue();
+        assertThat(guardada.getOrdenId()).isEqualTo(200L);
+        assertThat(guardada.getRevision()).isEqualTo(1L);
+        assertThat(guardada.getEstadoOrigen()).isEqualTo("PENDIENTE_PAGO");
+        assertThat(guardada.getEstadoDestino()).isEqualTo("PAGADA");
+    }
+
+    @Test
+    @DisplayName("Si falta reserva en una línea, ninguna línea se confirma")
+    void rechazaElLoteCompletoSiFaltaReserva() {
+        Inventory segundoProducto = new Inventory();
+        segundoProducto.setProductId(101L);
+        segundoProducto.setStockDisponible(8L);
+        segundoProducto.setStockReservado(1L);
+
+        ConfirmacionStockDTO solicitud = new ConfirmacionStockDTO(
+                1L,
+                List.of(
+                        new ConfirmacionStockDTO.Linea(100L, 2L),
+                        new ConfirmacionStockDTO.Linea(101L, 3L)
+                )
+        );
+
+        when(inventoryRepository.findInventarioByProductId(100L))
+                .thenReturn(Optional.of(inventarioPrueba));
+        when(inventoryRepository.findInventarioByProductId(101L))
+                .thenReturn(Optional.of(segundoProducto));
+        when(operacionStockOrdenRepository.findByOrdenIdAndRevision(200L, 1L))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> inventoryService.confirmarStockOrden(200L, solicitud))
+                .isInstanceOf(InventoryException.class)
+                .hasMessageContaining("101");
+
+        assertThat(inventarioPrueba.getStockReservado()).isEqualTo(10L);
+        assertThat(inventarioPrueba.getMovimientos()).hasSize(1);
+        assertThat(segundoProducto.getStockReservado()).isEqualTo(1L);
+        assertThat(segundoProducto.getMovimientos()).isEmpty();
+        verify(operacionStockOrdenRepository, never())
+                .saveAndFlush(any(OperacionStockOrden.class));
+    }
+
+    private void prepararEscrituraPorProducto() {
+        when(inventoryRepository.findInventarioByProductId(100L))
+                .thenReturn(Optional.of(inventarioPrueba));
+        when(inventoryRepository.save(inventarioPrueba)).thenReturn(inventarioPrueba);
+        when(inventoryRepository.findById(1L)).thenReturn(Optional.of(inventarioPrueba));
+    }
+
+    private InventoryCantidadDTO cantidad(long unidades) {
+        InventoryCantidadDTO dto = new InventoryCantidadDTO();
+        dto.setCantidad(unidades);
+        return dto;
     }
 }

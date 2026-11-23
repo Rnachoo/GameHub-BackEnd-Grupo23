@@ -25,40 +25,79 @@ public class SecurityConfig {
 
     @Bean
     public JwtDecoder jwtDecoder() {
-        SecretKey key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
-        return NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
+        SecretKey key = new SecretKeySpec(
+                secret.getBytes(StandardCharsets.UTF_8),
+                "HmacSHA256"
+        );
+
+        return NimbusJwtDecoder.withSecretKey(key)
+                .macAlgorithm(MacAlgorithm.HS256)
+                .build();
     }
 
     @Bean
     public JwtAuthenticationConverter jwtAuthenticationConverter() {
-        JwtGrantedAuthoritiesConverter authorities = new JwtGrantedAuthoritiesConverter();
+        JwtGrantedAuthoritiesConverter authorities =
+                new JwtGrantedAuthoritiesConverter();
         authorities.setAuthoritiesClaimName("roles");
         authorities.setAuthorityPrefix("");
+
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter(authorities);
         return converter;
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthenticationConverter converter) throws Exception {
+    public SecurityFilterChain filterChain(
+            HttpSecurity http,
+            JwtAuthenticationConverter converter
+    ) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/docs/**", "/swagger-ui/**", "/v3/api-docs/**", "/h2-console/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/inventories", "/api/v1/inventories/producto/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/inventories/**").hasAnyRole("ADMIN", "OPERADOR")
+                        .requestMatchers(
+                                "/docs/**",
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**",
+                                "/h2-console/**"
+                        ).permitAll()
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/inventories",
+                                "/api/v1/inventories/producto/**"
+                        ).permitAll()
+
+                        .requestMatchers(HttpMethod.GET, "/api/v1/inventories/**")
+                        .hasAnyRole("ADMIN", "OPERADOR")
+
                         .requestMatchers(
                                 HttpMethod.PUT,
                                 "/api/v1/inventories/producto/{productId}/reservar",
                                 "/api/v1/inventories/producto/{productId}/liberar",
-                                "/api/v1/inventories/producto/{productId}/confirmar-venta"
+                                "/api/v1/inventories/producto/{productId}/confirmar-venta",
+                                "/api/v1/inventories/ordenes/{ordenId}/confirmacion"
                         ).hasAuthority("STOCK_ORDENES")
-                        .requestMatchers(HttpMethod.PATCH, "/api/v1/inventories/*/cantidad").hasAnyRole("ADMIN", "OPERADOR")
-                        .requestMatchers("/api/v1/inventories", "/api/v1/inventories/**").hasRole("ADMIN")
-                        .anyRequest().authenticated())
-                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.jwtAuthenticationConverter(converter)))
-                .headers(h -> h.frameOptions(f -> f.disable()));
+
+                        .requestMatchers(
+                                HttpMethod.PATCH,
+                                "/api/v1/inventories/*/cantidad"
+                        ).hasAnyRole("ADMIN", "OPERADOR")
+
+                        .requestMatchers("/api/v1/inventories", "/api/v1/inventories/**")
+                        .hasRole("ADMIN")
+
+                        .anyRequest().authenticated()
+                )
+                .sessionManagement(sm ->
+                        sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .oauth2ResourceServer(oauth ->
+                        oauth.jwt(jwt -> jwt.jwtAuthenticationConverter(converter))
+                )
+                .headers(headers ->
+                        headers.frameOptions(frame -> frame.disable())
+                );
 
         return http.build();
     }

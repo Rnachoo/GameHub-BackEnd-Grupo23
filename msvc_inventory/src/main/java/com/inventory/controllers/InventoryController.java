@@ -1,10 +1,7 @@
 package com.inventory.controllers;
 
 import com.inventory.assemblers.InventoryModelAssembler;
-import com.inventory.models.dtos.InventoryCantidadDTO;
-import com.inventory.models.dtos.InventoryDetalleDTO;
-import com.inventory.models.dtos.InventorySaveDTO;
-import com.inventory.models.dtos.InventoryUpdateCantidadDisponibleDTO;
+import com.inventory.models.dtos.*;
 import com.inventory.services.InventoryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -184,6 +181,15 @@ public class InventoryController {
         EntityModel<InventoryDetalleDTO> entityModel = this.inventoryModelAssembler.toModel(response);
         return ResponseEntity.status(HttpStatus.OK).body(entityModel);
     }
+    @PutMapping("/ordenes/{ordenId}/confirmacion")
+    public ResponseEntity<Void> confirmarStockOrden(
+            @PathVariable Long ordenId,
+            @Valid @RequestBody ConfirmacionStockDTO solicitud
+    ) {
+        inventoryService.confirmarStockOrden(ordenId, solicitud);
+        return ResponseEntity.noContent().build();
+    }
+
 
 
 }
