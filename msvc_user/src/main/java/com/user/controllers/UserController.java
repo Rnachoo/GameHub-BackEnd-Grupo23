@@ -20,6 +20,7 @@ import org.springframework.hateoas.EntityModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -40,6 +41,7 @@ public class UserController {
 
     //Encontrar a todos los usuarios registrados
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(
             summary = "Listado de todos los usuarios con sus direcciones",
             description = "Devuelve la información de todos los usuarios con sus direcciones que esten registrados en el sistema")
@@ -59,6 +61,7 @@ public class UserController {
 
     //Buscar un usuario por el ID
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OPERADOR') or @userRepository.existsByIdAndEmail(#p0, authentication.name)")
     @Operation(
             summary = "Busqueda de un Usuario por ID",
             description = "Devuelve los detalles de un usuario especifica. Lanza una excepción si no la encuentra"
@@ -83,6 +86,7 @@ public class UserController {
 
     //Buscar un usuario por el email
     @GetMapping("/email/{email}")
+    @PreAuthorize("hasRole('ADMIN') or #p0 == authentication.name")
     @Operation(summary = "Busqueda de un usuario por el Email", description = "Devuelve los detalles de un usuario basándose en su Email")
     @ApiResponses(value = {
             @ApiResponse(
@@ -102,6 +106,7 @@ public class UserController {
 
     //Buscar un usuario por el estado
     @GetMapping("/estado/{estado}")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Búsqueda de un usuario por el Estado", description = "Devuelve una lista de usuarios basándose en su Estado")
     @ApiResponses(value = {
             @ApiResponse(
@@ -125,6 +130,7 @@ public class UserController {
     }
     //Crear un usuario en el sistema
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN') or #p0.email == authentication.name")
     @Operation(summary = "Crear usuarios",description = "Registra un usuario nuevo")
     @io.swagger.v3.oas.annotations.parameters.RequestBody(
             description = "Usuario a crear", required = true,
@@ -138,6 +144,7 @@ public class UserController {
 
     //Desactivar (No eliminar) por el ID
     @PatchMapping ("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Desactivación de un Usuario", description = "Desactiva un Usuario registrado")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Usuario desactivado con exito"),
@@ -155,6 +162,7 @@ public class UserController {
 
     //Actualizar el telefono de una cuenta
     @PatchMapping("/{id}/telefono")
+    @PreAuthorize("hasRole('ADMIN') or @userRepository.existsByIdAndEmail(#p0, authentication.name)")
     @Operation(summary = "Actualizar teléfono de un Usuario", description = "Actualiza el teléfono de un Usuario registrada")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Teléfono del Usuario actualizado con éxito"),
@@ -171,6 +179,7 @@ public class UserController {
 
     //Acutalizar la dirección de un usuario
     @PatchMapping("/{id}/directions")
+    @PreAuthorize("hasRole('ADMIN') or @userRepository.existsByIdAndEmail(#p0, authentication.name)")
     @Operation(summary = "Actualizar dirección de un Usuario", description = "Actualiza la dirección de un Usuario registrada")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "dirección del Usuario actualizado con éxito"),

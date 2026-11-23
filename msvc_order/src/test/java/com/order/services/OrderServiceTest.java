@@ -5,12 +5,12 @@ import com.order.clients.ProductClient;
 import com.order.clients.PromotionClient;
 import com.order.clients.UserClient;
 import com.order.exceptions.OrderException;
+import com.order.exceptions.RecursoNoEncontradoException;
 import com.order.models.Order;
 import com.order.models.OrderItem;
 import com.order.models.dtos.*;
 import com.order.repositories.OrderRepository;
 import feign.FeignException;
-import net.datafaker.Faker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,29 +21,28 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyDouble;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-public class OrderServiceTest {
+class OrderServiceTest {
 
     @Mock
     private OrderRepository orderRepository;
+
     @Mock
     private InventoryClient inventoryClient;
+
     @Mock
     private ProductClient productClient;
+
     @Mock
     private PromotionClient promotionClient;
+
     @Mock
     private UserClient userClient;
 
@@ -51,244 +50,298 @@ public class OrderServiceTest {
     private OrderServiceImpl orderService;
 
     private Order ordenPrueba;
-    private OrderItem itemPrueba;
-    private UserDTO userDtoPrueba;
-    private ProductDTO productDtoPrueba;
-    private PromotionDTO promotionDtoPrueba;
-    private InventoryDTO inventoryDtoPrueba;
+    private UserDTO usuario;
+    private ProductDTO producto;
+    private InventoryDTO inventario;
 
     @BeforeEach
-    public void setUp() {
-        Faker faker = new Faker(Locale.of("es", "CL"));
+    void setUp() {
+        usuario = new UserDTO();
+        usuario.setId(1L);
+        usuario.setNombreUser("Usuario de prueba");
 
-        // 1. Simulación de Respuestas de los Feign Clients
-        this.userDtoPrueba = new UserDTO();
-        this.userDtoPrueba.setId(1L);
-        this.userDtoPrueba.setNombreUser("Usuario de Prueba");
+        producto = new ProductDTO();
+        producto.setId(10L);
+        producto.setPrecio(15000L);
+        producto.setEstado("Activo");
 
-        this.productDtoPrueba = new ProductDTO();
-        this.productDtoPrueba.setId(10L);
-        this.productDtoPrueba.setPrecio(15000L);
-        this.productDtoPrueba.setEstado("Activo");
+        inventario = new InventoryDTO();
+        inventario.setProductId(10L);
+        inventario.setStockDisponible(50L);
 
-        this.inventoryDtoPrueba = new InventoryDTO();
-        this.inventoryDtoPrueba.setProductId(10L);
-        this.inventoryDtoPrueba.setStockDisponible(50L);
+        ordenPrueba = new Order();
+        ordenPrueba.setId(100L);
+        ordenPrueba.setUserId(1L);
+        ordenPrueba.setFecha(LocalDateTime.of(2026, 11, 23, 12, 0));
+        ordenPrueba.setEstado("PENDIENTE_PAGO");
+        ordenPrueba.setSubtotal(30000L);
+        ordenPrueba.setDescuento(0L);
+        ordenPrueba.setTotal(30000L);
 
-        this.promotionDtoPrueba = new PromotionDTO();
-        this.promotionDtoPrueba.setValor(5000.0); // Descuento simulado
-
-        // 2. Configuración de Entidades
-        this.ordenPrueba = new Order();
-        this.ordenPrueba.setId(100L);
-        this.ordenPrueba.setUserId(1L);
-        this.ordenPrueba.setFecha(LocalDateTime.now());
-        this.ordenPrueba.setEstado("PENDIENTE_PAGO");
-        this.ordenPrueba.setSubtotal(30000L);
-        this.ordenPrueba.setDescuento(0L);
-        this.ordenPrueba.setTotal(30000L);
-
-        this.itemPrueba = new OrderItem();
-        this.itemPrueba.setId(1L);
-        this.itemPrueba.setProductId(10L);
-        this.itemPrueba.setCantidad(2L);
-        this.itemPrueba.setPrecioUnitario(15000L);
-        this.itemPrueba.setOrder(this.ordenPrueba);
-
-        this.ordenPrueba.getItems().add(this.itemPrueba);
+        OrderItem item = new OrderItem();
+        item.setId(1L);
+        item.setProductId(10L);
+        item.setCantidad(2L);
+        item.setPrecioUnitario(15000L);
+        item.setOrder(ordenPrueba);
+        ordenPrueba.getItems().add(item);
     }
 
     @Test
-    @DisplayName("Debe listar todas las órdenes de un cliente")
-    public void shouldFindByClient() {
-        Long userId = 1L;
-        when(this.orderRepository.findByUserId(userId)).thenReturn(List.of(this.ordenPrueba));
+    @DisplayName("Lista las órdenes del cliente con sus productos")
+    void shouldFindByClient() {
+        when(orderRepository.findByUserId(1L)).thenReturn(List.of(ordenPrueba));
 
-        List<OrderDetalleDTO> result = this.orderService.findByClient(userId);
+        List<OrderDetalleDTO> resultado = orderService.findByClient(1L);
 
-        assertThat(result).isNotNull();
-        assertThat(result.size()).isEqualTo(1);
-        assertThat(result.get(0).getUserId()).isEqualTo(userId);
-        assertThat(result.get(0).getItems().size()).isEqualTo(1);
-        verify(orderRepository, times(1)).findByUserId(userId);
+        assertThat(resultado).hasSize(1);
+        assertThat(resultado.get(0).getUserId()).isEqualTo(1L);
+        assertThat(resultado.get(0).getItems()).hasSize(1);
+        verify(orderRepository).findByUserId(1L);
     }
 
     @Test
-    @DisplayName("Debe listar todas las órdenes por estado")
-    public void shouldFindByEstado() {
-        String estado = "PENDIENTE_PAGO";
-        when(this.orderRepository.findByEstado(estado)).thenReturn(List.of(this.ordenPrueba));
+    @DisplayName("Lista las órdenes por estado")
+    void shouldFindByEstado() {
+        when(orderRepository.findByEstado("PENDIENTE_PAGO"))
+                .thenReturn(List.of(ordenPrueba));
 
-        List<OrderDetalleDTO> result = this.orderService.findByEstado(estado);
+        List<OrderDetalleDTO> resultado = orderService.findByEstado("PENDIENTE_PAGO");
 
-        assertThat(result).isNotNull();
-        assertThat(result.size()).isEqualTo(1);
-        assertThat(result.get(0).getEstado()).isEqualTo(estado);
-        verify(orderRepository, times(1)).findByEstado(estado);
+        assertThat(resultado).hasSize(1);
+        assertThat(resultado.get(0).getEstado()).isEqualTo("PENDIENTE_PAGO");
+        verify(orderRepository).findByEstado("PENDIENTE_PAGO");
     }
 
     @Test
-    @DisplayName("Debe buscar una orden por ID exitosamente")
-    public void shouldFindById() {
-        Long orderId = 100L;
-        when(this.orderRepository.findById(orderId)).thenReturn(Optional.of(this.ordenPrueba));
+    @DisplayName("Busca una orden por ID sin solicitar bloqueo de escritura")
+    void shouldFindById() {
+        when(orderRepository.findById(100L)).thenReturn(Optional.of(ordenPrueba));
 
-        OrderDetalleDTO result = this.orderService.findById(orderId);
+        OrderDetalleDTO resultado = orderService.findById(100L);
 
-        assertThat(result).isNotNull();
-        assertThat(result.getId()).isEqualTo(orderId);
-        verify(orderRepository, times(1)).findById(orderId);
+        assertThat(resultado.getId()).isEqualTo(100L);
+        verify(orderRepository).findById(100L);
+        verify(orderRepository, never()).findOrdenById(anyLong());
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción al buscar orden inexistente")
-    public void shouldThrowExceptionWhenOrderNotFound() {
-        Long orderId = 999L;
-        when(this.orderRepository.findById(orderId)).thenReturn(Optional.empty());
+    @DisplayName("Informa cuando la orden solicitada no existe")
+    void shouldThrowExceptionWhenOrderNotFound() {
+        when(orderRepository.findById(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> this.orderService.findById(orderId))
-                .isInstanceOf(OrderException.class)
-                .hasMessage("La orden con id " + orderId + " no existe");
+        assertThatThrownBy(() -> orderService.findById(999L))
+                .isInstanceOf(RecursoNoEncontradoException.class)
+                .hasMessage("La orden con id 999 no existe");
     }
 
     @Test
-    @DisplayName("Debe guardar una orden exitosamente (Con Promoción y Reservas)")
-    public void shouldSaveOrderSuccessfully() {
-        OrderSaveDTO saveDTO = new OrderSaveDTO();
-        saveDTO.setUserId(1L);
-        saveDTO.setCodigoPromocion("DESCUENTO_VERANO");
+    @DisplayName("Guarda la orden, reserva stock y aplica la promoción")
+    void shouldSaveOrderSuccessfully() {
+        OrderSaveDTO solicitud = solicitudDeOrden();
+        solicitud.setCodigoPromocion("DESCUENTO_VERANO");
 
-        OrderSaveItemDTO saveItem = new OrderSaveItemDTO();
-        saveItem.setProductId(10L);
-        saveItem.setCantidad(2L);
-        saveDTO.setItems(List.of(saveItem));
+        PromotionDTO promocion = new PromotionDTO();
+        promocion.setValor(5000.0);
 
-        // Mocks de clientes Feign
-        when(this.userClient.getUserById(saveDTO.getUserId())).thenReturn(this.userDtoPrueba);
-        when(this.productClient.getProductById(saveItem.getProductId())).thenReturn(this.productDtoPrueba);
-        when(this.inventoryClient.reservarStock(eq(saveItem.getProductId()), any(InventoryCantidadDTO.class))).thenReturn(this.inventoryDtoPrueba);
-        when(this.promotionClient.aplicarPromocion(anyString(), any(PromotionSaveDTO.class), anyDouble())).thenReturn(this.promotionDtoPrueba);
-
-        // Mock del repositorio
-        when(this.orderRepository.save(any(Order.class))).thenAnswer(i -> {
-            Order ordenGuardada = i.getArgument(0);
-            ordenGuardada.setId(200L);
-            return ordenGuardada;
+        when(userClient.getUserById(1L)).thenReturn(usuario);
+        when(productClient.getProductById(10L)).thenReturn(producto);
+        when(inventoryClient.reservarStock(eq(10L), any(InventoryCantidadDTO.class)))
+                .thenReturn(inventario);
+        when(promotionClient.aplicarPromocion(
+                eq("DESCUENTO_VERANO"), any(PromotionSaveDTO.class), eq(30000.0)
+        )).thenReturn(promocion);
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocacion -> {
+            Order orden = invocacion.getArgument(0);
+            orden.setId(200L);
+            return orden;
         });
 
-        OrderDetalleDTO result = this.orderService.save(saveDTO);
+        OrderDetalleDTO resultado = orderService.save(solicitud);
 
-        assertThat(result).isNotNull();
-        assertThat(result.getId()).isEqualTo(200L);
-        assertThat(result.getSubtotal()).isEqualTo(30000L); // 15000 * 2
-        assertThat(result.getDescuento()).isEqualTo(5000L); // Valor de la promoción
-        assertThat(result.getTotal()).isEqualTo(25000L); // 30000 - 5000
-
-        verify(userClient, times(1)).getUserById(saveDTO.getUserId());
-        verify(productClient, times(1)).getProductById(saveItem.getProductId());
-        verify(inventoryClient, times(1)).reservarStock(eq(saveItem.getProductId()), any(InventoryCantidadDTO.class));
-        verify(promotionClient, times(1)).aplicarPromocion(anyString(), any(PromotionSaveDTO.class), anyDouble());
-        verify(orderRepository, times(1)).save(any(Order.class));
+        assertThat(resultado.getId()).isEqualTo(200L);
+        assertThat(resultado.getSubtotal()).isEqualTo(30000L);
+        assertThat(resultado.getDescuento()).isEqualTo(5000L);
+        assertThat(resultado.getTotal()).isEqualTo(25000L);
+        verify(userClient).getUserById(1L);
+        verify(productClient).getProductById(10L);
+        verify(inventoryClient).reservarStock(eq(10L), any(InventoryCantidadDTO.class));
+        verify(promotionClient).aplicarPromocion(
+                eq("DESCUENTO_VERANO"), any(PromotionSaveDTO.class), eq(30000.0)
+        );
+        verify(orderRepository).save(any(Order.class));
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción al guardar si el usuario no existe")
-    public void shouldThrowExceptionWhenUserNotExistsOnSave() {
-        OrderSaveDTO saveDTO = new OrderSaveDTO();
-        saveDTO.setUserId(999L);
+    @DisplayName("Rechaza la creación si el usuario no existe")
+    void shouldThrowExceptionWhenUserNotExistsOnSave() {
+        OrderSaveDTO solicitud = solicitudDeOrden();
+        solicitud.setUserId(999L);
 
-        when(this.userClient.getUserById(saveDTO.getUserId())).thenThrow(mock(FeignException.class));
+        when(userClient.getUserById(999L)).thenThrow(mock(FeignException.class));
 
-        assertThatThrownBy(() -> this.orderService.save(saveDTO))
-                .isInstanceOf(OrderException.class)
+        assertThatThrownBy(() -> orderService.save(solicitud))
+                .isInstanceOf(RecursoNoEncontradoException.class)
                 .hasMessage("El user con id 999 no existe");
 
         verify(orderRepository, never()).save(any(Order.class));
+        verifyNoInteractions(inventoryClient);
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción al guardar si el producto está inactivo")
-    public void shouldThrowExceptionWhenProductIsInactive() {
-        OrderSaveDTO saveDTO = new OrderSaveDTO();
-        saveDTO.setUserId(1L);
-        OrderSaveItemDTO saveItem = new OrderSaveItemDTO();
-        saveItem.setProductId(10L);
-        saveDTO.setItems(List.of(saveItem));
+    @DisplayName("Rechaza una orden con un producto inactivo")
+    void shouldThrowExceptionWhenProductIsInactive() {
+        OrderSaveDTO solicitud = solicitudDeOrden();
+        producto.setEstado("Inactivo");
 
-        this.productDtoPrueba.setEstado("Inactivo");
+        when(userClient.getUserById(1L)).thenReturn(usuario);
+        when(productClient.getProductById(10L)).thenReturn(producto);
 
-        when(this.userClient.getUserById(saveDTO.getUserId())).thenReturn(this.userDtoPrueba);
-        when(this.productClient.getProductById(saveItem.getProductId())).thenReturn(this.productDtoPrueba);
-
-        assertThatThrownBy(() -> this.orderService.save(saveDTO))
+        assertThatThrownBy(() -> orderService.save(solicitud))
                 .isInstanceOf(OrderException.class)
                 .hasMessageContaining("no existe o está inactivo");
+
+        verifyNoInteractions(inventoryClient);
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción al guardar si no hay stock suficiente en inventario")
-    public void shouldThrowExceptionWhenInventoryFails() {
-        OrderSaveDTO saveDTO = new OrderSaveDTO();
-        saveDTO.setUserId(1L);
-        OrderSaveItemDTO saveItem = new OrderSaveItemDTO();
-        saveItem.setProductId(10L);
-        saveItem.setCantidad(2L);
-        saveDTO.setItems(List.of(saveItem));
+    @DisplayName("Rechaza la orden cuando Inventario rechaza la reserva")
+    void shouldThrowExceptionWhenInventoryFails() {
+        OrderSaveDTO solicitud = solicitudDeOrden();
 
-        when(this.userClient.getUserById(saveDTO.getUserId())).thenReturn(this.userDtoPrueba);
-        when(this.productClient.getProductById(saveItem.getProductId())).thenReturn(this.productDtoPrueba);
-        when(this.inventoryClient.reservarStock(eq(saveItem.getProductId()), any(InventoryCantidadDTO.class))).thenThrow(mock(FeignException.class));
+        when(userClient.getUserById(1L)).thenReturn(usuario);
+        when(productClient.getProductById(10L)).thenReturn(producto);
+        when(inventoryClient.reservarStock(eq(10L), any(InventoryCantidadDTO.class)))
+                .thenThrow(mock(FeignException.class));
 
-        assertThatThrownBy(() -> this.orderService.save(saveDTO))
+        assertThatThrownBy(() -> orderService.save(solicitud))
                 .isInstanceOf(OrderException.class)
                 .hasMessageContaining("No hay stock suficiente para el producto");
+
+        verify(orderRepository, never()).save(any(Order.class));
     }
 
     @Test
-    @DisplayName("Debe actualizar el estado de una orden exitosamente")
-    public void shouldUpdateEstado() {
-        Long orderId = 100L;
-        OrderUpdateEstadoDTO updateDTO = new OrderUpdateEstadoDTO();
-        updateDTO.setEstado("PAGADA");
+    @DisplayName("Actualiza el estado usando la consulta con bloqueo")
+    void shouldUpdateEstado() {
+        when(orderRepository.findOrdenById(100L)).thenReturn(Optional.of(ordenPrueba));
+        when(orderRepository.save(ordenPrueba)).thenReturn(ordenPrueba);
 
-        when(this.orderRepository.findById(orderId)).thenReturn(Optional.of(this.ordenPrueba));
-        when(this.orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+        OrderDetalleDTO resultado = orderService.updateEstado(100L, cambioA("PAGADA"));
 
-        OrderDetalleDTO result = this.orderService.updateEstado(orderId, updateDTO);
-
-        assertThat(result).isNotNull();
-        assertThat(result.getEstado()).isEqualTo("PAGADA");
-        verify(orderRepository, times(1)).save(any(Order.class));
+        assertThat(resultado.getEstado()).isEqualTo("PAGADA");
+        verify(inventoryClient).confirmarStockOrden(100L, movimiento(1L));
+        assertThat(ordenPrueba.getRevisionStock()).isEqualTo(1L);
+        verify(orderRepository).findOrdenById(100L);
+        verify(orderRepository).save(ordenPrueba);
     }
 
     @Test
-    @DisplayName("Debe cancelar una orden y liberar el stock en el inventario")
-    public void shouldCancelarOrden() {
-        Long orderId = 100L;
+    @DisplayName("Repetir una aprobación ya guardada conserva la orden pagada")
+    void shouldIgnoreRepeatedPaymentApproval() {
+        ordenPrueba.setEstado("PAGADA");
+        when(orderRepository.findOrdenById(100L)).thenReturn(Optional.of(ordenPrueba));
 
-        when(this.orderRepository.findById(orderId)).thenReturn(Optional.of(this.ordenPrueba));
-        when(this.inventoryClient.liberarStock(anyLong(), any(InventoryCantidadDTO.class))).thenReturn(this.inventoryDtoPrueba);
+        OrderDetalleDTO resultado = orderService.updateEstado(100L, cambioA("PAGADA"));
 
-        this.orderService.cancelarOrden(orderId);
-
-        assertThat(this.ordenPrueba.getEstado()).isEqualTo("CANCELADA");
-        verify(inventoryClient, times(1)).liberarStock(eq(10L), any(InventoryCantidadDTO.class));
-        verify(orderRepository, times(1)).save(this.ordenPrueba);
+        assertThat(resultado.getEstado()).isEqualTo("PAGADA");
+        verify(orderRepository, never()).save(any(Order.class));
+        verifyNoInteractions(inventoryClient);
     }
 
     @Test
-    @DisplayName("Debe lanzar excepción si intenta cancelar una orden ya cancelada")
-    public void shouldThrowExceptionWhenOrderIsAlreadyCanceled() {
-        Long orderId = 100L;
-        this.ordenPrueba.setEstado("CANCELADA");
+    @DisplayName("Repetir la transición a cancelada no vuelve a liberar stock")
+    void shouldIgnoreRepeatedCanceledState() {
+        ordenPrueba.setEstado("CANCELADA");
+        when(orderRepository.findOrdenById(100L)).thenReturn(Optional.of(ordenPrueba));
 
-        when(this.orderRepository.findById(orderId)).thenReturn(Optional.of(this.ordenPrueba));
+        OrderDetalleDTO resultado = orderService.updateEstado(100L, cambioA("CANCELADA"));
 
-        assertThatThrownBy(() -> this.orderService.cancelarOrden(orderId))
+        assertThat(resultado.getEstado()).isEqualTo("CANCELADA");
+        verify(orderRepository, never()).save(any(Order.class));
+        verifyNoInteractions(inventoryClient);
+    }
+
+    @Test
+    @DisplayName("Cancela una orden pendiente y libera su reserva")
+    void shouldCancelarOrden() {
+        when(orderRepository.findOrdenById(100L)).thenReturn(Optional.of(ordenPrueba));
+
+
+        orderService.cancelarOrden(100L);
+
+        assertThat(ordenPrueba.getEstado()).isEqualTo("CANCELADA");
+        verify(inventoryClient).cambiarEstadoStockOrden(100L, "PENDIENTE_PAGO", "CANCELADA", movimiento(1L));
+        verify(orderRepository).save(ordenPrueba);
+    }
+
+    @Test
+    @DisplayName("Rechaza una segunda cancelación manual sin modificar inventario")
+    void shouldThrowExceptionWhenOrderIsAlreadyCanceled() {
+        ordenPrueba.setEstado("CANCELADA");
+        when(orderRepository.findOrdenById(100L)).thenReturn(Optional.of(ordenPrueba));
+
+        assertThatThrownBy(() -> orderService.cancelarOrden(100L))
                 .isInstanceOf(OrderException.class)
                 .hasMessage("La orden ya se encuentra cancelada.");
 
-        verify(inventoryClient, never()).liberarStock(anyLong(), any(InventoryCantidadDTO.class));
+        verifyNoInteractions(inventoryClient);
         verify(orderRepository, never()).save(any(Order.class));
+    }
+
+    @Test
+    @DisplayName("Tras un fallo remoto, el reintento usa la misma revisión")
+    void reintentarAprobacionReutilizaRevision() {
+        ordenPrueba.setRevisionStock(2L);
+        when(orderRepository.findOrdenById(100L)).thenReturn(Optional.of(ordenPrueba));
+        when(orderRepository.save(ordenPrueba)).thenReturn(ordenPrueba);
+        doThrow(mock(FeignException.class)).doNothing()
+                .when(inventoryClient).confirmarStockOrden(100L, movimiento(3L));
+
+        assertThatThrownBy(() -> orderService.updateEstado(100L, cambioA("PAGADA")))
+                .isInstanceOf(FeignException.class);
+        assertThat(ordenPrueba.getEstado()).isEqualTo("PENDIENTE_PAGO");
+        assertThat(ordenPrueba.getRevisionStock()).isEqualTo(2L);
+        verify(orderRepository, never()).save(any(Order.class));
+
+        orderService.updateEstado(100L, cambioA("PAGADA"));
+        verify(inventoryClient, times(2)).confirmarStockOrden(100L, movimiento(3L));
+        assertThat(ordenPrueba.getRevisionStock()).isEqualTo(3L);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"PENDIENTE_PAGO", "CANCELADA"})
+    void reviertePagoAprobado(String destino) {
+        ordenPrueba.setEstado("PAGADA");
+        ordenPrueba.setRevisionStock(1L);
+        when(orderRepository.findOrdenById(100L)).thenReturn(Optional.of(ordenPrueba));
+        when(orderRepository.save(ordenPrueba)).thenReturn(ordenPrueba);
+
+        OrderDetalleDTO resultado = orderService.updateEstado(100L, cambioA(destino));
+
+        verify(inventoryClient).cambiarEstadoStockOrden(100L, "PAGADA", destino, movimiento(2L));
+        assertThat(resultado.getEstado()).isEqualTo(destino);
+        assertThat(ordenPrueba.getRevisionStock()).isEqualTo(2L);
+    }
+
+    private MovimientoStockOrdenDTO movimiento(long revision) {
+        return new MovimientoStockOrdenDTO(revision, List.of(new MovimientoStockOrdenDTO.Linea(10L, 2L)));
+    }
+
+    private OrderSaveDTO solicitudDeOrden() {
+        OrderSaveItemDTO item = new OrderSaveItemDTO();
+        item.setProductId(10L);
+        item.setCantidad(2L);
+
+        OrderSaveDTO solicitud = new OrderSaveDTO();
+        solicitud.setUserId(1L);
+        solicitud.setItems(List.of(item));
+        return solicitud;
+    }
+
+    private OrderUpdateEstadoDTO cambioA(String estado) {
+        OrderUpdateEstadoDTO cambio = new OrderUpdateEstadoDTO();
+        cambio.setEstado(estado);
+        return cambio;
     }
 }

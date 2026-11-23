@@ -166,22 +166,31 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     @Override
     public AuthDetalleDTO updatePassword(Long id, AuthUpdatePasswordDTO passwordDTO) {
-        return this.authRepository.findById(id).map(auth ->{
-            auth.setPassword(passwordEncoder.encode(passwordDTO.getPassword()));
-            log.info("Contraseña actuliazada con exito!");
+        Auth auth = authRepository.findById(id)
+                .orElseThrow(() -> new AuthException(
+                        "Cuenta no encontrada",
+                        HttpStatus.NOT_FOUND
+                ));
 
-            auth = this.authRepository.save(auth);
+        if (!passwordEncoder.matches(passwordDTO.getPasswordActual(), auth.getPassword())) {
+            throw new AuthException(
+                    "La contraseña actual es incorrecta",
+                    HttpStatus.BAD_REQUEST,
+                    "PASSWORD_ACTUAL_INCORRECTA"
+            );
+        }
 
-            AuthDetalleDTO dto = new AuthDetalleDTO();
-            dto.setId(auth.getId());
-            dto.setEmail(auth.getEmail());
-            dto.setRol(auth.getRoles().isEmpty() ? "SIN_ROL" : auth.getRoles().iterator().next().getNombre());
-            dto.setEstado(auth.getEstado());
-            return dto;
+        auth.setPassword(passwordEncoder.encode(passwordDTO.getPassword()));
+        Auth actualizada = authRepository.save(auth);
 
-        }).orElseThrow(
-                () -> new AuthException("Cuenta no encontrada", HttpStatus.NOT_FOUND)
-        );
+        AuthDetalleDTO dto = new AuthDetalleDTO();
+        dto.setId(actualizada.getId());
+        dto.setEmail(actualizada.getEmail());
+        dto.setRol(actualizada.getRoles().isEmpty()
+                ? "SIN_ROL"
+                : actualizada.getRoles().iterator().next().getNombre());
+        dto.setEstado(actualizada.getEstado());
+        return dto;
     }
 
     @Transactional

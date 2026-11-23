@@ -1,10 +1,7 @@
 package com.inventory.controllers;
 
 import com.inventory.assemblers.InventoryModelAssembler;
-import com.inventory.models.dtos.InventoryCantidadDTO;
-import com.inventory.models.dtos.InventoryDetalleDTO;
-import com.inventory.models.dtos.InventorySaveDTO;
-import com.inventory.models.dtos.InventoryUpdateCantidadDisponibleDTO;
+import com.inventory.models.dtos.*;
 import com.inventory.services.InventoryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -183,6 +180,25 @@ public class InventoryController {
         InventoryDetalleDTO response = inventoryService.confirmarVenta(productId, cantidadDTO);
         EntityModel<InventoryDetalleDTO> entityModel = this.inventoryModelAssembler.toModel(response);
         return ResponseEntity.status(HttpStatus.OK).body(entityModel);
+    }
+    @PutMapping("/ordenes/{ordenId}/confirmacion")
+    public ResponseEntity<Void> confirmarStockOrden(
+            @PathVariable Long ordenId,
+            @Valid @RequestBody ConfirmacionStockDTO solicitud
+    ) {
+        inventoryService.confirmarStockOrden(ordenId, solicitud);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/ordenes/{ordenId}/transiciones/{origen}/{destino}")
+    public ResponseEntity<Void> cambiarEstadoStockOrden(
+            @PathVariable Long ordenId,
+            @PathVariable String origen,
+            @PathVariable String destino,
+            @Valid @RequestBody ConfirmacionStockDTO solicitud
+    ) {
+        inventoryService.cambiarEstadoStockOrden(ordenId, origen, destino, solicitud);
+        return ResponseEntity.noContent().build();
     }
 
 

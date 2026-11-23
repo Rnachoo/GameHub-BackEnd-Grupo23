@@ -16,7 +16,7 @@ public class PaymentModelAssembler implements RepresentationModelAssembler<Payme
     public EntityModel<PaymentDetalleDTO> toModel(PaymentDetalleDTO payment) {
         return EntityModel.of(
                 payment,
-                linkTo(methodOn(PaymentController.class).findById(payment.getId())).withSelfRel(),
+                linkTo(methodOn(PaymentController.class).findById(payment.getId(), null)).withSelfRel(),
                 linkTo(methodOn(PaymentController.class).findAllByOrdenId(payment.getOrdenId(), null)).withRel("orden-pagos"),
                 linkTo(methodOn(PaymentController.class).nullById(payment.getId())).withRel("anular-pago")
         );

@@ -18,6 +18,8 @@ import org.springframework.hateoas.EntityModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -54,36 +56,51 @@ public class ShippingController {
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Buscar despacho por ID", description = "Devuelve los detalles de un despacho específico")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Despacho encontrado",
-                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = DespachoResponseDTO.class))),
-            @ApiResponse(responseCode = "404", description = "Despacho no encontrado")
-    })
+    @Operation(summary = "Buscar despacho por ID")
     public ResponseEntity<EntityModel<DespachoResponseDTO>> findById(
-            @Parameter(description = "ID del despacho a buscar", required = true, example = "1")
-            @PathVariable Long id) {
-        EntityModel<DespachoResponseDTO> entityModel = shippingModelAssembler.toModel(shippingService.getDespachoById(id));
-        return ResponseEntity.status(HttpStatus.OK).body(entityModel);
+            @PathVariable Long id,
+            Authentication authentication
+    ) {
+        DespachoResponseDTO despacho = shippingService.getDespachoById(id);
+
+        validarLectura(despacho.getOrdenId(), authentication);
+
+        return ResponseEntity.ok(shippingModelAssembler.toModel(despacho));
     }
 
     @GetMapping("/orden/{ordenId}")
-    @Operation(summary = "Buscar despachos por orden", description = "Devuelve todos los despachos asociados a una orden")
-    @ApiResponse(responseCode = "200", description = "Operación exitosa")
+    @Operation(summary = "Buscar despachos por orden")
     public ResponseEntity<CollectionModel<EntityModel<DespachoResponseDTO>>> findByOrdenId(
-            @Parameter(description = "ID de la orden", required = true, example = "1")
-            @PathVariable Long ordenId) {
-        List<EntityModel<DespachoResponseDTO>> entityModels = shippingService.getDespachosByOrdenId(ordenId)
-                .stream()
-                .map(shippingModelAssembler::toModel)
-                .toList();
-        CollectionModel<EntityModel<DespachoResponseDTO>> collectionModel = CollectionModel.of(
-                entityModels,
-                linkTo(methodOn(ShippingController.class).findByOrdenId(ordenId)).withSelfRel()
+            @PathVariable Long ordenId,
+            Authentication authentication
+    ) {
+        validarLectura(ordenId, authentication);
+
+        List<EntityModel<DespachoResponseDTO>> despachos =
+                shippingService.getDespachosByOrdenId(ordenId)
+                        .stream()
+                        .map(shippingModelAssembler::toModel)
+                        .toList();
+
+        CollectionModel<EntityModel<DespachoResponseDTO>> respuesta = CollectionModel.of(
+                despachos,
+                linkTo(methodOn(ShippingController.class)
+                        .findByOrdenId(ordenId, null)).withSelfRel()
         );
-        return ResponseEntity.status(HttpStatus.OK).body(collectionModel);
+
+        return ResponseEntity.ok(respuesta);
     }
 
+    private void validarLectura(Long ordenId, Authentication authentication) {
+        var permisos = authentication.getAuthorities();
+        boolean puedeGestionarDespachos =
+                permisos.contains(new SimpleGrantedAuthority("ROLE_ADMIN"))
+                        || permisos.contains(new SimpleGrantedAuthority("ROLE_OPERADOR"));
+
+        if (!puedeGestionarDespachos) {
+            shippingService.validarDuenoOrden(ordenId, authentication.getName());
+        }
+    }
     @GetMapping("/estado/{estado}")
     @Operation(summary = "Buscar despachos por estado", description = "Devuelve todos los despachos con un estado específico")
     @ApiResponse(responseCode = "200", description = "Operación exitosa")

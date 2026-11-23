@@ -62,7 +62,11 @@ public class AuthController {
 
     //Buscar por el ID de una cuenta
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'USER', 'OPERADOR')")
+    @PreAuthorize("""
+    hasRole('ADMIN') or
+    (hasAnyRole('USER', 'OPERADOR') and
+     @authRepository.existsByIdAndEmail(#p0, authentication.name))
+    """)
     @Operation(summary = "Búscar cuenta con el ID", description = "Devuelve los detalles de una cuenta coincidente con el ID registrado")
     @ApiResponses(value = {
             @ApiResponse(
@@ -82,7 +86,10 @@ public class AuthController {
 
     //Buscar una cuenta por el email
     @GetMapping("/email/{email}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'USER', 'OPERADOR')")
+    @PreAuthorize("""
+    hasRole('ADMIN') or
+    (hasAnyRole('USER', 'OPERADOR') and #p0 == authentication.name)
+    """)
     @Operation(summary = "Busqueda de una cuenta por el Email", description = "Devuelve los detalles de una cuenta basándose en su Email")
     @ApiResponses(value = {
             @ApiResponse(
@@ -131,7 +138,10 @@ public class AuthController {
 
     //Actualizar la contraseña de una cuenta
     @PatchMapping("/{id}/password")
-    @PreAuthorize("hasAnyRole('ADMIN', 'USER', 'OPERADOR')")
+    @PreAuthorize("""
+    hasAnyRole('ADMIN', 'USER', 'OPERADOR') and
+    @authRepository.existsByIdAndEmail(#p0, authentication.name)
+    """)
     @Operation(summary = "Actualizar contraseña de una cuenta", description = "Actualiza la clave una cuenta registrada")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Contraseña de la cuenta actualizada con exito"),

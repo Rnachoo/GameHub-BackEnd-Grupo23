@@ -25,8 +25,14 @@ public class SecurityConfig {
 
     @Bean
     public JwtDecoder jwtDecoder() {
-        SecretKey key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
-        return NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
+        SecretKey key = new SecretKeySpec(
+                secret.getBytes(StandardCharsets.UTF_8),
+                "HmacSHA256"
+        );
+
+        return NimbusJwtDecoder.withSecretKey(key)
+                .macAlgorithm(MacAlgorithm.HS256)
+                .build();
     }
 
     @Bean
@@ -34,26 +40,56 @@ public class SecurityConfig {
         JwtGrantedAuthoritiesConverter authorities = new JwtGrantedAuthoritiesConverter();
         authorities.setAuthoritiesClaimName("roles");
         authorities.setAuthorityPrefix("");
+
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter(authorities);
         return converter;
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthenticationConverter converter) throws Exception {
+    public SecurityFilterChain filterChain(
+            HttpSecurity http,
+            JwtAuthenticationConverter converter
+    ) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/docs/**", "/swagger-ui/**", "/v3/api-docs/**", "/h2-console/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/resenas/producto/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/resenas/**").hasAnyRole("USER", "OPERADOR", "ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/api/v1/resenas").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers(HttpMethod.PATCH, "/api/v1/resenas/{id}/update").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers(HttpMethod.PATCH, "/api/v1/resenas/{id}/moderar").hasRole("ADMIN")
-                        .anyRequest().authenticated())
-                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.jwtAuthenticationConverter(converter)))
-                .headers(h -> h.frameOptions(f -> f.disable()));
+                        .requestMatchers(
+                                "/docs/**",
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**",
+                                "/h2-console/**"
+                        ).permitAll()
+
+                        .requestMatchers(HttpMethod.GET, "/api/v1/resenas/producto/**")
+                        .permitAll()
+
+                        .requestMatchers(HttpMethod.GET, "/api/v1/resenas/admin/**")
+                        .hasRole("ADMIN")
+
+                        .requestMatchers(HttpMethod.GET, "/api/v1/resenas/**")
+                        .hasAnyRole("USER", "OPERADOR", "ADMIN")
+
+                        .requestMatchers(HttpMethod.POST, "/api/v1/resenas")
+                        .hasAnyRole("USER", "ADMIN")
+
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/resenas/{id}/update")
+                        .hasAnyRole("USER", "ADMIN")
+
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/resenas/{id}/moderar")
+                        .hasRole("ADMIN")
+
+                        .anyRequest().authenticated()
+                )
+                .sessionManagement(sm ->
+                        sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .oauth2ResourceServer(oauth ->
+                        oauth.jwt(jwt -> jwt.jwtAuthenticationConverter(converter))
+                )
+                .headers(headers ->
+                        headers.frameOptions(frame -> frame.disable())
+                );
 
         return http.build();
     }

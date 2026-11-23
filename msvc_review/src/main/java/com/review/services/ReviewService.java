@@ -15,4 +15,5 @@ public interface ReviewService {
     ResenaResponseDTO moderarResena(Long id);
     void validarDueno(Long usuarioId, String email);
     void validarDuenoResena(Long id, String email);
+    List<ResenaResponseDTO> getResenasParaModerar(Long productoId);
 }

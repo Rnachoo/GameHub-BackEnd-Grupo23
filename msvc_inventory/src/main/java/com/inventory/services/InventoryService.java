@@ -4,6 +4,7 @@ import com.inventory.models.dtos.InventoryCantidadDTO;
 import com.inventory.models.dtos.InventoryDetalleDTO;
 import com.inventory.models.dtos.InventorySaveDTO;
 import com.inventory.models.dtos.InventoryUpdateCantidadDisponibleDTO;
+import com.inventory.models.dtos.ConfirmacionStockDTO;
 
 import java.util.List;
 
@@ -17,5 +18,6 @@ public interface InventoryService {
     InventoryDetalleDTO reservarStock(Long productId, InventoryCantidadDTO cantidadDTO);
     InventoryDetalleDTO liberarStock(Long productId, InventoryCantidadDTO cantidadDTO);
     InventoryDetalleDTO confirmarVenta(Long productId, InventoryCantidadDTO cantidadDTO);
-
+    void confirmarStockOrden(Long ordenId, ConfirmacionStockDTO solicitud);
+    void cambiarEstadoStockOrden(Long ordenId, String origen, String destino, ConfirmacionStockDTO solicitud);
 }

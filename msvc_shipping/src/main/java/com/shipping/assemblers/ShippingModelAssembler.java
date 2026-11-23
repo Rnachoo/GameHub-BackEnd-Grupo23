@@ -16,7 +16,7 @@ public class ShippingModelAssembler implements RepresentationModelAssembler<Desp
     public EntityModel<DespachoResponseDTO> toModel(DespachoResponseDTO despacho) {
         return EntityModel.of(
                 despacho,
-                linkTo(methodOn(ShippingController.class).findById(despacho.getId())).withSelfRel(),
+                linkTo(methodOn(ShippingController.class).findById(despacho.getId(), null)).withSelfRel(),
                 linkTo(methodOn(ShippingController.class).findAll()).withRel("despachos"),
                 linkTo(methodOn(ShippingController.class).cancelar(despacho.getId())).withRel("cancelar"),
                 linkTo(methodOn(ShippingController.class).updateEstado(despacho.getId(), null, null, null)).withRel("update-estado")

@@ -14,5 +14,6 @@ public interface ShippingService {
     List<DespachoResponseDTO> getAllDespachos();
     DespachoResponseDTO cancelarDespacho(Long id);
     DespachoResponseDTO updateEstadoDespacho(Long id, String estado, String tracking, LocalDateTime fechaEntrega);
+    void validarDuenoOrden(Long ordenId, String email);
 
 }

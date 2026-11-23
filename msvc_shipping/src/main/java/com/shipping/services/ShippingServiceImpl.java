@@ -11,6 +11,8 @@ import com.shipping.models.EstadoDespacho;
 import com.shipping.models.dtos.DespachoRequestDTO;
 import com.shipping.models.dtos.DespachoResponseDTO;
 import com.shipping.repositories.DespachoRepository;
+import feign.FeignException;
+import org.springframework.security.access.AccessDeniedException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -184,6 +186,23 @@ public class ShippingServiceImpl implements ShippingService {
             return EstadoDespacho.valueOf(estado.toUpperCase());
         } catch (IllegalArgumentException | NullPointerException e) {
             throw new ShippingException("Estado de despacho no valido. Use PENDIENTE, EN_CAMINO, ENTREGADO o CANCELADO");
+        }
+    }
+
+    @Override
+    public void validarDuenoOrden(Long ordenId, String email) {
+        OrdenClientDTO orden;
+
+        try {
+            orden = orderFeignClient.getOrdenById(ordenId);
+        } catch (FeignException.NotFound ex) {
+            throw new RecursoNoEncontradoException("La orden indicada no existe.");
+        }
+
+        UsuarioClientDTO titular = userFeignClient.getUsuarioById(orden.getUsuarioId());
+
+        if (email == null || !email.equals(titular.getEmail())) {
+            throw new AccessDeniedException("La orden pertenece a otro usuario.");
         }
     }
 }

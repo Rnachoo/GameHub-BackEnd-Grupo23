@@ -218,13 +218,15 @@ public class ReviewServiceTest {
     @DisplayName("Debe listar reseñas por ID de producto")
     public void shouldGetResenasByProductoId() {
         Long productoId = 50L;
-        when(this.resenaRepository.findByProductoId(productoId)).thenReturn(this.listaResenas);
+        when(resenaRepository.findByProductoIdAndEstado(productoId, "Active"))
+                .thenReturn(this.listaResenas);
 
         List<ResenaResponseDTO> result = this.reviewService.getResenasByProductoId(productoId);
 
         assertThat(result).isNotNull();
         assertThat(result.size()).isEqualTo(4);
-        verify(resenaRepository, times(1)).findByProductoId(productoId);
+        verify(resenaRepository, times(1))
+                .findByProductoIdAndEstado(productoId, "Active");
     }
 
     @Test

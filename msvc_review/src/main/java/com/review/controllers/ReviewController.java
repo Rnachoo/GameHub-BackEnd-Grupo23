@@ -144,4 +144,22 @@ public class ReviewController {
         List<String> roles = jwt.getClaimAsStringList("roles");
         return roles == null || !roles.contains("ROLE_ADMIN");
     }
+
+    @GetMapping("/admin/producto/{productoId}")
+    @Operation(summary = "Listar reseñas de un producto para moderación")
+    public ResponseEntity<CollectionModel<EntityModel<ResenaResponseDTO>>> findParaModerar(
+            @PathVariable Long productoId
+    ) {
+        List<EntityModel<ResenaResponseDTO>> resenas = reviewService
+                .getResenasParaModerar(productoId)
+                .stream()
+                .map(reviewModelAssembler::toModel)
+                .toList();
+
+        return ResponseEntity.ok(CollectionModel.of(
+                resenas,
+                linkTo(methodOn(ReviewController.class)
+                        .findParaModerar(productoId)).withSelfRel()
+        ));
+    }
 }
