@@ -44,16 +44,6 @@ API Gateway :8080 ── Eureka :8761
 | shipping | `/despachos` | Despachos y seguimiento |
 | review | `/resenas` | Reseñas de productos comprados |
 
-## Variables de entorno
-
-| Variable | Obligatoria | Uso |
-|---|---|---|
-| `JWT_SECRET` | Sí | Clave compartida con la que se firma y se valida el JWT (32 caracteres o más) |
-| `DB_PASSWORD` | Sí | Contraseña de las bases H2 |
-| `SEED_PASSWORD` | No | Si existe, crea las cuentas de prueba |
-| `JWT_EXPIRATION_MINUTES` | No | Duración del token (por defecto, 60) |
-
-Ninguna credencial queda en el repositorio. Con Docker se cargan desde `.env` (plantilla en `.env.docker.example`).
 
 ## Docker
 
