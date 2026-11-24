@@ -31,6 +31,8 @@ API Gateway :8080 ── Eureka :8761
       ├── inventory :8005   └── promotion :8009
 ```
 
+## Microservicios
+
 | Servicio | Ruta base (`/api/v1`) | Responsabilidad |
 |---|---|---|
 | auth | `/auths` | Registro, login, renovación del token y roles |
@@ -55,4 +57,4 @@ docker compose up -d --wait           # siguientes veces
 docker compose down                   # detener
 ```
 
-Levanta Eureka, el Gateway y los 10 servicios. Solo el Gateway queda expuesto, en `http://localhost:8080`, y cada base H2 vive en su propio volumen. El frontend en Vercel o en `localhost:5173` se conecta a ese Gateway. Swagger queda en `http://localhost:8080/docs/swagger-ui.html`.
+Levanta Eureka, el Gateway y los 10 servicios. Solo el Gateway queda expuesto, en `http://localhost:8080`, y cada base H2 vive en su propio volumen. El frontend en Vercel o en `localhost:5173` se conecta a ese Gateway. 
